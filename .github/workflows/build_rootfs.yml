@@ -1,0 +1,180 @@
+name: Build Rootfs
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger_reason:
+        description: 'Reason for triggering build'
+        required: false
+        default: 'Manual trigger'
+  schedule:
+    - cron: '32 14 * * *'
+  repository_dispatch:
+    types: [cve-update, golang-update, rootfs-change]
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  check-new-cves:
+    name: Check for New CVEs
+    runs-on: ubuntu-latest
+    outputs:
+      cves_detected: ${{ steps.cve-check.outputs.changes_detected }}
+      cves_updated: ${{ steps.cve-check.outputs.cves_updated }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Check for new CVEs
+        id: cve-check
+        uses: ./.github/actions/check-rootfs-cves
+        with:
+          stack: ${{ vars.STACK }}
+          ubuntu_version: ${{ vars.CVE_UBUNTU_VERSION }}
+          ubuntu_codename: ${{ vars.CVE_UBUNTU_CODENAME }}
+          buildpacks_ci_repo: ${{ vars.BUILDPACKS_CI_REPO }}
+          cves_repo_path: new-cves
+          rootfs_repo: ${{ vars.ROOTFS_REPO }}
+          cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
+
+  bump-golang-package:
+    name: Bump Golang Package
+    runs-on: ubuntu-latest
+    outputs:
+      golang_updated: ${{ steps.golang-bump.outputs.changes_detected }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Bump Golang Package
+        id: golang-bump
+        uses: ./.github/actions/bump-golang-package
+        with:
+          git_user_name: ${{ vars.STACK }}-bot
+          git_user_email: ${{ vars.STACK }}-bot@test.com
+          packages: '["golang-1-linux"]'
+          private_yml: |
+            blobstore:
+              provider: s3
+              options:
+                bucket_name: ${{ vars.BUCKET_NAME }}
+                prefix: bosh-blobs
+                region: ${{ vars.AWS_REGION }}
+                credentials_source: env_or_profile
+          cflinuxfs_release_repo: ${{ vars.RELEASE_REPO }}
+          cflinuxfs_release_ref: ${{ vars.DEFAULT_BRANCH }}
+          golang_release_repo: ${{ vars.GOLANG_RELEASE_REPO }}
+          golang_release_ref: ${{ vars.DEFAULT_BRANCH }}
+          release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+
+  determine-build-needed:
+    name: Determine if Build is Needed
+    needs: [check-new-cves, bump-golang-package]
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.decide.outputs.should_build }}
+      trigger_reason: ${{ steps.decide.outputs.reason }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Decide if build is needed
+        id: decide
+        uses: ./.github/actions/determine-build-needed
+        with:
+          cves_detected: ${{ needs.check-new-cves.outputs.cves_detected }}
+          golang_updated: ${{ needs.bump-golang-package.outputs.golang_updated }}
+          event_name: ${{ github.event_name }}
+          event_action: ${{ github.event.action }}
+          trigger_reason: ${{ github.event.inputs.trigger_reason }}
+
+  gather-resources:
+    name: Gather Resources
+    needs: [check-new-cves, bump-golang-package, determine-build-needed]
+    runs-on: ubuntu-latest
+    if: needs.determine-build-needed.outputs.should_build == 'true'
+    outputs:
+      previous-version: ${{ steps.previous-release.outputs.tag }}
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Log build reason
+        uses: ./.github/actions/log-build-reason
+        with:
+          trigger_reason: ${{ needs.determine-build-needed.outputs.trigger_reason }}
+          cves_detected: ${{ needs.check-new-cves.outputs.cves_detected }}
+          golang_updated: ${{ needs.bump-golang-package.outputs.golang_updated }}
+
+      - name: Get previous rootfs release
+        id: previous-release
+        uses: ./.github/actions/get-previous-release-tag
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ vars.STACK }}
+
+      - name: Generate version
+        id: version
+        uses: ./.github/actions/generate-version
+        with:
+          previous_tag: ${{ steps.previous-release.outputs.tag }}
+          version_format: ${{ vars.VERSION_FORMAT }}
+
+  build-and-process:
+    name: Build and Process Rootfs
+    needs: [determine-build-needed, gather-resources]
+    runs-on: ubuntu-latest
+    if: needs.determine-build-needed.outputs.should_build == 'true'
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Build rootfs and process artifacts
+        uses: ./.github/actions/build-and-process-rootfs
+        with:
+          stack: ${{ vars.STACK }}
+          version: ${{ needs.gather-resources.outputs.version }}
+          previous_version: ${{ needs.gather-resources.outputs.previous-version }}
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          release_repo: ${{ vars.RELEASE_REPO }}
+          cflinuxfs_repo: ${{ vars.ROOTFS_REPO }}
+          go_version: ${{ vars.GOLANG_VERSION }}
+          aws_region: ${{ vars.AWS_REGION }}
+          cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
+          release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+
+      - name: Dispatch Test Workflow
+        if: success()
+        uses: ./.github/actions/trigger-test-workflow
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ needs.gather-resources.outputs.version }}
+
+  build-summary:
+    name: Build Summary
+    runs-on: ubuntu-latest
+    needs: [check-new-cves, bump-golang-package, determine-build-needed, gather-resources, build-and-process]
+    if: always()
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Generate build summary
+        uses: ./.github/actions/generate-build-summary
+        with:
+          cves_detected: ${{ needs.check-new-cves.outputs.cves_detected }}
+          golang_updated: ${{ needs.bump-golang-package.outputs.golang_updated }}
+          should_build: ${{ needs.determine-build-needed.outputs.should_build }}
+          trigger_reason: ${{ needs.determine-build-needed.outputs.trigger_reason }}
+          gather_result: ${{ needs.gather-resources.result }}
+          build_result: ${{ needs.build-and-process.result }}
+          version: ${{ needs.gather-resources.outputs.version }}

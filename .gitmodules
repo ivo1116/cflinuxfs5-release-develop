@@ -1,0 +1,3 @@
+[submodule "src/code.cloudfoundry.org/certsplitter"]
+	path = src/code.cloudfoundry.org/certsplitter
+	url = https://github.com/cloudfoundry/certsplitter

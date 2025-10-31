@@ -1,0 +1,65 @@
+name: 'Commit and Tag Rootfs'
+description: 'Commit updated receipt and tag a release'
+
+inputs:
+  repo_dir:
+    description: 'Path to the rootfs repository working copy'
+    required: true
+  receipt_path:
+    description: 'Path to final receipt file copied into repo'
+    required: true
+  tag:
+    description: 'Git tag to create (final version)'
+    required: true
+  stack:
+    description: 'cflinuxfs stack'
+    required: true
+  git_user_name:
+    description: 'Git user.name for commit'
+    required: true
+  git_user_email:
+    description: 'Git user.email for commit'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Commit and tag
+      shell: bash
+      run: |
+        set -euo pipefail
+        repo="${{ inputs.repo_dir }}"
+        receipt="${{ inputs.receipt_path }}"
+        STACK="${{ inputs.stack }}"
+        
+        test -d "$repo/.git" || { echo "Invalid repo dir"; exit 1; }
+        test -f "$receipt" || { echo "Missing receipt $receipt"; exit 1; }
+
+        cp "$receipt" "$repo/receipt.${STACK}.x86_64"
+
+        cd "$repo"
+        git config user.name "${{ inputs.git_user_name }}"
+        git config user.email "${{ inputs.git_user_email }}"
+
+        git fetch origin "${DEFAULT_BRANCH:-main}"
+        git checkout "${DEFAULT_BRANCH:-main}"
+        git pull --ff-only origin "${DEFAULT_BRANCH:-main}"
+
+        git add "receipt.${STACK}.x86_64"
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+        else
+          git commit -m "Release ${STACK} ${{ inputs.tag }}: update receipt"
+        fi
+
+        if git rev-parse -q --verify "refs/tags/${{ inputs.tag }}" >/dev/null
+        then
+          echo "Tag already exists"
+        else
+          git tag "${{ inputs.tag }}"
+        fi
+
+        git push origin "${DEFAULT_BRANCH:-main}"
+        git push origin "refs/tags/${{ inputs.tag }}"
+        
+        echo "Committed and tagged release ${{ inputs.tag }}"

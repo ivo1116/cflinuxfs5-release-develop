@@ -1,0 +1,149 @@
+name: 'Deploy CF with the new cflinux version'
+description: 'Deploy Cloud Foundry to a bbl environment using the new stack'
+
+inputs:
+  env_name:
+    description: 'bbl environment name (state dir under the bbl-state repo)'
+    required: true
+  stack:
+    description: 'cflinux stack to be used for deployment'
+    required: true
+  version:
+    description: 'cflinuxfs version (e.g., 1.0.0-rc.1)'
+    required: true
+  bbl_state_repo:
+    description: 'Repo holding bbl state (owner/repo)'
+    required: true
+  bbl_state_branch:
+    description: 'Branch of the bbl state repo'
+    required: false
+    default: main
+  bbl_state_deploy_key:
+    description: 'SSH deploy key for BBL state repo'
+    required: true
+  ops_file_repo:
+    description: 'Git repo conataining the ops file'
+    required: true
+  ops_file:
+    description: 'use cflinuxfs ops file'
+    default: "ops-file/use-{your-cflinuxfs-version}.yml"
+    required: true
+  system_domain:
+    description: 'System domain for CF'
+    required: true
+  bucket_name:
+    description: 'S3 bucket name for downloading artifacts'
+    required: true
+
+outputs:
+  success:
+    description: 'true if deploy completed successfully'
+    value: ${{ steps.deploy.outputs.success }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+
+    - name: Checkout bbl state repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.bbl_state_repo }}
+        ref: ${{ inputs.bbl_state_branch }}
+        ssh-key: ${{ inputs.bbl_state_deploy_key }}
+        path: bbl-state
+
+    - name: Checkout cf-deployment
+      uses: actions/checkout@v4
+      with:
+        repository: cloudfoundry/cf-deployment
+        ref: main
+        path: cf-deployment
+
+    - name: Checkout test ops file repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.ops_file_repo }}
+        ref: main
+        path: ops-file
+
+    - name: Setup tools (bosh, bbl)
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        wget -O /tmp/bbl https://github.com/cloudfoundry/bosh-bootloader/releases/download/v9.0.36/bbl-v9.0.36_linux_amd64
+        chmod +x /tmp/bbl
+        sudo mv /tmp/bbl /usr/local/bin/bbl
+
+        wget -O /tmp/bosh https://github.com/cloudfoundry/bosh-cli/releases/download/v7.4.0/bosh-cli-7.4.0-linux-amd64
+        chmod +x /tmp/bosh
+        sudo mv /tmp/bosh /usr/local/bin/bosh
+
+    - name: Download release from S3
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: release
+
+    - name: Upload Noble stemcell
+      shell: bash
+      run: |
+        set -euo pipefail
+        BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+        eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
+        bosh upload-stemcell https://bosh.io/d/stemcells/bosh-google-kvm-ubuntu-noble?v=1.25
+
+    - name: Upload cflinux release
+      shell: bash
+      run: |
+        set -euo pipefail
+        STACK="${{ inputs.stack }}"
+        VERSION="${{ inputs.version }}"
+        BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+        eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
+        bosh upload-release rootfs-artifacts/${STACK}-release-${VERSION}.tgz
+
+    - name: Deploy CF with the new rootfs
+      id: deploy
+      shell: bash
+      run: |
+        set -euo pipefail
+        BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+        DOMAIN="${{ inputs.system_domain }}"
+        OPS_FILE="ops-file/${{ inputs.ops_file }}"
+        eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
+        
+        deploy_cf() {
+          bosh -n -d cf deploy cf-deployment/cf-deployment.yml \
+            -o cf-deployment/operations/experimental/use-noble-stemcell.yml \
+            -o cf-deployment/operations/use-postgres.yml \
+            -o ${OPS_FILE} \
+            -v system_domain=${DOMAIN}
+        }
+        
+        echo "Attempting CF deployment..."
+        if ! deploy_cf; then
+          echo "Deployment failed on first attempt"
+          echo "Waiting 30 seconds before retry..."
+          sleep 30
+          echo "Retrying deployment..."
+          deploy_cf
+        fi
+        
+        echo "Deployment completed successfully"
+        echo "success=true" >> "$GITHUB_OUTPUT"
+
+    - name: Cleanup sensitive files
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+        rm -f "$BBL_STATE_DIR"/*key*.json || true
+        rm -f "$BBL_STATE_DIR"/*.pem || true
+        rm -f private.yml || true
+        echo "Cleaned up sensitive files in $BBL_STATE_DIR"

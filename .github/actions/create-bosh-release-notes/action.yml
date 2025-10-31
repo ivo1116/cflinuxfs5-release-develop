@@ -1,0 +1,34 @@
+name: 'Create BOSH Release Notes'
+description: 'Generate GitHub release notes for BOSH release'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Version for the BOSH release'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate BOSH release notes
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        mkdir -p release-body
+        {
+          echo "# ${{ inputs.stack }} BOSH Release v${{ inputs.version }}"
+          echo
+          echo "Includes rootfs tarball and final BOSH release."
+          echo
+          echo "## Usage"
+          echo '```yaml'
+          echo "releases:"
+          echo "- name: ${{ inputs.stack }}"
+          echo "  version: ${{ inputs.version }}"
+          echo '```'
+        } > release-body/body
+        
+        echo "BOSH release notes generated for v${{ inputs.version }}"

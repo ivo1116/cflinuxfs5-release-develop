@@ -1,0 +1,56 @@
+name: 'Generate Version'
+description: 'Generate next version based on previous release and format'
+
+inputs:
+  previous_tag:
+    description: 'Previous release tag'
+    required: false
+  version_format:
+    description: 'Version format (minor or patch)'
+    required: false
+    default: 'minor'
+
+outputs:
+  version:
+    description: 'Generated version'
+    value: ${{ steps.generate.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate version
+      id: generate
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        PREVIOUS="${{ inputs.previous_tag }}"
+        VERSION_FORMAT="${{ inputs.version_format }}"
+        PREVIOUS=${PREVIOUS#v}  
+        
+        if [[ -z "$PREVIOUS" ]]; then
+          VERSION="1.0.0-rc.1"
+        elif [[ "$PREVIOUS" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc\.([0-9]+)$ ]]; then
+          BASE_VERSION="${BASH_REMATCH[1]}"
+          RC_NUMBER="${BASH_REMATCH[2]}"
+          NEW_RC_NUMBER=$((RC_NUMBER + 1))
+          VERSION="${BASE_VERSION}-rc.${NEW_RC_NUMBER}"
+        elif [[ "$PREVIOUS" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          patch="${BASH_REMATCH[3]}"
+          
+          if [[ "$VERSION_FORMAT" == "minor" ]]; then
+            new_minor=$((minor + 1))
+            VERSION="${major}.${new_minor}.0-rc.1"
+          else
+            new_patch=$((patch + 1))
+            VERSION="${major}.${minor}.${new_patch}-rc.1"
+          fi
+        else
+          echo "ERROR: Cannot parse version format: $PREVIOUS"
+          exit 1
+        fi
+        
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Generated version: $VERSION (format: $VERSION_FORMAT, previous: ${PREVIOUS:-none})"

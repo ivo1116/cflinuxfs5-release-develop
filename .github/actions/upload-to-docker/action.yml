@@ -1,0 +1,54 @@
+name: 'Upload to Docker Hub'
+description: 'Build and push Docker image to Docker Hub'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Version to tag'
+    required: true
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  docker_image:
+    description: 'Docker image name'
+    required: true
+  dockerhub_username:
+    description: 'Docker Hub username'
+    required: true
+  dockerhub_token:
+    description: 'Docker Hub token'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+
+    - name: Download final stack from S3
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: stack
+
+    - name: Prepare docker import tar
+      uses: ./.github/actions/rename-rootfs-for-docker
+      with:
+        stack: ${{ inputs.stack }}
+
+    - name: Docker login
+      uses: docker/login-action@v3
+      with:
+        username: ${{ inputs.dockerhub_username }}
+        password: ${{ inputs.dockerhub_token }}
+
+    - name: Import and push tags
+      uses: ./.github/actions/docker-import-and-push
+      with:
+        image: ${{ inputs.docker_image }}
+        version: ${{ inputs.version }}
+        tar_path: docker-s3/${{ inputs.stack }}.tar.gz

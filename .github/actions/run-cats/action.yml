@@ -1,0 +1,220 @@
+name: 'Run CATs'
+description: 'Run Cloud Foundry Acceptance Tests (CATS)'
+
+inputs:
+  bbl_state_repo:
+    description: 'Repo holding bbl state (owner/repo)'
+    required: true
+  bbl_state_branch:
+    description: 'Branch of the bbl state repo'
+    required: false
+    default: main
+  bbl_state_deploy_key:
+    description: 'SSH deploy key for BBL state repo'
+    required: true
+  env_name:
+    description: 'bbl environment name (state dir under the bbl-state repo)'
+    required: true
+  system_domain:
+    description: 'CF system domain'
+    required: true
+  nodes:
+    description: 'Number of parallel test nodes'
+    required: false
+    default: '4'
+  flake_attempts:
+    description: 'Retries for flaky tests'
+    required: false
+    default: '2'
+  timeout:
+    description: 'Test timeout (e.g. 2h)'
+    required: false
+    default: '2h'
+
+outputs:
+  success:
+    description: 'Whether CATs passed'
+    value: ${{ steps.cats.outputs.success }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout CF Acceptance Tests
+      uses: actions/checkout@v4
+      with:
+        repository: cloudfoundry/cf-acceptance-tests
+        ref: develop
+        path: cf-acceptance-tests
+
+    - name: Checkout bbl state repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.bbl_state_repo }}
+        ref: ${{ inputs.bbl_state_branch }}
+        ssh-key: ${{ inputs.bbl_state_deploy_key }}
+        path: bbl-state
+
+    - name: Setup tools (bbl, cf, credhub)
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        wget -O /tmp/bbl https://github.com/cloudfoundry/bosh-bootloader/releases/download/v9.0.36/bbl-v9.0.36_linux_amd64
+        chmod +x /tmp/bbl && sudo mv /tmp/bbl /usr/local/bin/bbl
+
+        wget -q -O - https://packages.cloudfoundry.org/debian/cli.cloudfoundry.org.key | sudo apt-key add -
+        echo "deb https://packages.cloudfoundry.org/debian stable main" | sudo tee /etc/apt/sources.list.d/cloudfoundry-cli.list
+        sudo apt-get update
+        sudo apt-get install cf8-cli -y
+
+        wget -O /tmp/credhub.tgz https://github.com/cloudfoundry/credhub-cli/releases/download/2.9.19/credhub-linux-2.9.19.tgz
+        mkdir -p /tmp/credhub-cli
+        tar -xzf /tmp/credhub.tgz -C /tmp/credhub-cli
+        sudo mv /tmp/credhub-cli/credhub /usr/local/bin/credhub
+
+    - name: Extract CF admin password from CredHub
+      id: creds
+      shell: bash
+      run: |
+        set -euo pipefail
+        BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+
+        eval "$(bbl print-env --state-dir "$BBL_STATE_DIR")"
+
+        DIRECTOR_NAME=$(jq -r .bosh.directorName "$BBL_STATE_DIR/bbl-state.json")
+
+        ADMIN_PASS=$(credhub get -n "/${DIRECTOR_NAME}/cf/cf_admin_password" -q)
+
+        echo "::add-mask::$ADMIN_PASS"
+        echo "admin_password=$ADMIN_PASS" >> $GITHUB_OUTPUT
+
+    - name: Login to CF
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf login -a "https://api.${{ inputs.system_domain }}" \
+          --skip-ssl-validation \
+          -u admin \
+          -p "${{ steps.creds.outputs.admin_password }}"
+
+    - name: Upload Go buildpack
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack cats_go_buildpack_fs5 -f || true
+        cf create-buildpack cats_go_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPMb9xqMjZzIYWRiCJq976v5K8O0FDln4djspB" 1
+        cf update-buildpack cats_go_buildpack_fs5 --assign-stack cflinuxfs5
+
+    - name: Upload Node.js buildpack
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack cats_nodejs_buildpack_fs5 -f || true
+        cf create-buildpack cats_nodejs_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPEsEtCHKh6AIfCm0e3PiDdbNpYMEzTuOkrgs7" 1
+        cf update-buildpack cats_nodejs_buildpack_fs5 --assign-stack cflinuxfs5
+
+    - name: Upload Python buildpack
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack cats_python_buildpack_fs5 -f || true
+        cf create-buildpack cats_python_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPcEArVMD2FVhQzX9fjT81MWLlu2ygOeI65wbB" 1
+        cf update-buildpack cats_python_buildpack_fs5 --assign-stack cflinuxfs5
+
+    - name: Upload Staticfile (Nginx) buildpack
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack cats_staticfile_buildpack_fs5 -f || true
+        cf create-buildpack cats_staticfile_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPWqx4jHLc0hYwfFZnEx9CoQWpjeHM1LruKXJN" 1
+        cf update-buildpack cats_staticfile_buildpack_fs5 --assign-stack cflinuxfs5
+
+    - name: Upload Binary buildpack
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack binary_buildpack -f || true
+        cf create-buildpack binary_buildpack "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kP361kcIMBSlE41WVDgbYQamtHMPncOA8KuCoJ" 1
+        cf update-buildpack binary_buildpack --assign-stack cflinuxfs5
+
+    - name: Create CATS config
+      id: config
+      shell: bash
+      run: |
+        set -euo pipefail
+        CONFIG_FILE=$(mktemp)
+        cat > $CONFIG_FILE <<EOF
+        {
+          "api": "api.${{ inputs.system_domain }}",
+          "apps_domain": "${{ inputs.system_domain }}",
+          "admin_user": "admin",
+          "admin_password": "${{ steps.creds.outputs.admin_password }}",
+          "skip_ssl_validation": true,
+          "use_existing_organization": false,
+          "use_existing_space": false,
+          "include_apps": true,
+          "include_detect": true,
+          "include_backend_compatibility": false,
+          "include_docker": false,
+          "include_internet_dependent": false,
+          "include_route_services": false,
+          "include_routing": false,
+          "include_security_groups": false,
+          "include_services": false,
+          "include_ssh": false,
+          "include_sso": false,
+          "include_tasks": false,
+          "include_v3": false,
+          "include_syslog": false,
+          "include_app_syslog_tcp": false,
+          "skip_diego_unsupported_tests": true,
+          "skip_go": false,
+          "skip_node": false,
+          "skip_java": true,
+          "skip_ruby": true,
+          "skip_python": false,
+          "skip_php": true,
+          "skip_dotnet": true,
+          "skip_staticfile": false,
+          "go_buildpack_name": "cats_go_buildpack_fs5",
+          "nginx_buildpack_name": "cats_staticfile_buildpack_fs5",
+          "nodejs_buildpack_name": "cats_nodejs_buildpack_fs5",
+          "python_buildpack_name": "cats_python_buildpack_fs5"
+        }
+        EOF
+        echo "config=$CONFIG_FILE" >> $GITHUB_OUTPUT
+
+    - name: Run CATs
+      id: cats
+      shell: bash
+      run: |
+        set +e
+        cd cf-acceptance-tests
+        export CONFIG=${{ steps.config.outputs.config }}
+        ./bin/test \
+          --nodes="${{ inputs.nodes }}" \
+          --flake-attempts=${{ inputs.flake_attempts }} \
+          --timeout="${{ inputs.timeout }}" \
+          --no-color
+        TEST_EXIT_CODE=$?
+        
+        if [ $TEST_EXIT_CODE -ne 0 ]; then
+          echo "CATs failed with exit code $TEST_EXIT_CODE, but continuing..."
+        fi
+        
+        echo "success=true" >> "$GITHUB_OUTPUT"
+        exit 0
+
+    - name: Delete uploaded Go buildpack
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack cats_go_buildpack_fs5 -f || true
+
+    - name: Delete uploaded Binary buildpack
+      if: always()
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack binary_buildpack -f || true

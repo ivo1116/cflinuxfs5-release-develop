@@ -1,0 +1,65 @@
+name: 'Download from S3'
+description: 'Download artifacts from S3'
+
+inputs:
+  stack:
+    description: 'Stack name (e.g., {your-cflinuxfs-version})'
+    required: true
+  version:
+    description: 'Version number'
+    required: true
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  artifact_type:
+    description: 'Type of artifact to download (stack, receipt, release)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Download from S3
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        STACK="${{ inputs.stack }}"
+        VERSION="${{ inputs.version }}"
+        BUCKET="${{ inputs.bucket_name }}"
+        TYPE="${{ inputs.artifact_type }}"
+
+        case "$TYPE" in
+          "stack")
+            mkdir -p rootfs-artifacts
+            FILE_NAME="${STACK}-${VERSION}.tar.gz"
+            echo "Downloading stack tarball: s3://${BUCKET}/rootfs/${FILE_NAME}"
+            aws s3 cp "s3://${BUCKET}/rootfs/${FILE_NAME}" "rootfs-artifacts/${FILE_NAME}"
+            ;;
+
+          "receipt")
+            mkdir -p receipt-artifacts
+            FILE_NAME="receipt.${STACK}.x86_64-${VERSION}"
+            echo "Downloading receipt: s3://${BUCKET}/rootfs/${FILE_NAME}"
+            aws s3 cp "s3://${BUCKET}/rootfs/${FILE_NAME}" "receipt-artifacts/${FILE_NAME}"
+            ;;
+
+          "release")
+            mkdir -p rootfs-artifacts
+            FILE_NAME="${STACK}-release-${VERSION}.tgz"
+            echo "Downloading BOSH release tarball: s3://${BUCKET}/rootfs/${FILE_NAME}"
+            aws s3 cp "s3://${BUCKET}/rootfs/${FILE_NAME}" "rootfs-artifacts/${FILE_NAME}"
+            ;;
+
+          *)
+            echo "ERROR: Unknown artifact type: $TYPE"
+            exit 1
+            ;;
+        esac

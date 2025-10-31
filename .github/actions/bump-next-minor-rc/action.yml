@@ -1,0 +1,35 @@
+name: 'Bump Next Minor RC'
+description: 'Compute the next minor version as X.(Y+1).0-rc.1 from a final'
+
+inputs:
+  final_version:
+    description: 'Final semver (e.g. 1.2.3)'
+    required: true
+
+outputs:
+  next_rc:
+    description: 'Next RC version (e.g. 1.3.0-rc.1)'
+    value: ${{ steps.bump.outputs.next_rc }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Bump to next minor RC
+      id: bump
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        ver="${{ inputs.final_version }}"
+        if [[ ! "$ver" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+          echo "ERROR: Invalid version format: $ver"
+          exit 1
+        fi
+        
+        major="${BASH_REMATCH[1]}"
+        minor="${BASH_REMATCH[2]}"
+        next_minor=$((minor + 1))
+        next="${major}.${next_minor}.0-rc.1"
+        
+        echo "next_rc=$next" >> $GITHUB_OUTPUT
+        echo "Bumped from $ver to $next"

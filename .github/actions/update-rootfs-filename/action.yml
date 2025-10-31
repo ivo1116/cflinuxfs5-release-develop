@@ -1,0 +1,31 @@
+name: 'Update Rootfs Filename'
+description: 'Rename rootfs tarball from RC to final version'
+
+inputs:
+  stack:
+    description: 'Stack name (e.g. {your-cflinuxfs-version})'
+    required: true
+  rc_version:
+    description: 'RC version tag (e.g. 1.2.3-rc.1)'
+    required: true
+  final_version:
+    description: 'Final version (e.g. 1.2.3)'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Rename rootfs file
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        src="rootfs-artifacts/${{ inputs.stack }}-${{ inputs.rc_version }}.tar.gz"
+        dst_dir="rootfs-archive"
+        dst="${dst_dir}/${{ inputs.stack }}-${{ inputs.final_version }}.tar.gz"
+        
+        test -f "$src" || { echo "Missing $src"; exit 1; }
+        mkdir -p "$dst_dir"
+        mv "$src" "$dst"
+        
+        echo "Renamed rootfs from ${{ inputs.rc_version }} to ${{ inputs.final_version }}"

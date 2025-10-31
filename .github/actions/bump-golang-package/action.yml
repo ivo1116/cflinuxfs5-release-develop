@@ -1,0 +1,153 @@
+name: 'Bump Golang Package'
+description: 'Vendors the latest golang package from bosh-package-golang-release into a BOSH release repo'
+
+inputs:
+  git_user_name:
+    description: 'Git user name for commits'
+    required: true
+  git_user_email:
+    description: 'Git user email for commits'
+    required: true
+  packages:
+    description: 'JSON array of packages to vendor (e.g. ["golang-1-linux"])'
+    required: true
+  packages_to_remove:
+    description: 'JSON array of packages to remove'
+    required: false
+    default: "[]"
+  private_yml:
+    description: 'YAML string for config/private.yml (also injected into final.yml)'
+    required: true
+  release_dir:
+    description: 'Subdirectory of the release repo (if not root)'
+    required: false
+    default: ""
+  cflinuxfs_release_repo:
+    description: 'GitHub repo (owner/repo) for the BOSH release'
+    required: true
+  release_deploy_key:
+    description: 'Deploy key for the BOSH release repo'
+    required: true
+  cflinuxfs_release_ref:
+    description: 'Git ref for the BOSH release'
+    required: false
+    default: "main"
+  golang_release_repo:
+    description: 'GitHub repo (owner/repo) for bosh-package-golang-release'
+    required: true
+  golang_release_ref:
+    description: 'Git ref for bosh-package-golang-release'
+    required: false
+    default: "main"
+
+outputs:
+  changes_detected:
+    description: 'Whether changes were made'
+    value: ${{ steps.vendor.outputs.changes_detected }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout BOSH release repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.cflinuxfs_release_repo }}
+        ref: ${{ inputs.cflinuxfs_release_ref }}
+        ssh-key: ${{ inputs.release_deploy_key }}
+        path: release-repo
+
+    - name: Checkout bosh-package-golang-release
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.golang_release_repo }}
+        ref: ${{ inputs.golang_release_ref }}
+        path: golang-release
+
+    - name: Set up Git
+      shell: bash
+      run: |
+        git config --global user.name "${{ inputs.git_user_name }}"
+        git config --global user.email "${{ inputs.git_user_email }}"
+
+    - name: Install BOSH CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        wget -qO /tmp/bosh https://github.com/cloudfoundry/bosh-cli/releases/download/v7.4.0/bosh-cli-7.4.0-linux-amd64
+        chmod +x /tmp/bosh
+        sudo mv /tmp/bosh /usr/local/bin/bosh
+
+    - name: Create private.yml
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p release-repo/config
+
+        echo "${{ inputs.private_yml }}" > release-repo/config/private.yml
+
+    - name: Vendor Golang Package
+      id: vendor
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        CFLINUXFS_RELEASE_PATH="release-repo"
+        GOLANG_RELEASE_PATH="golang-release"
+        GOLANG_RELEASE_ABS="$GITHUB_WORKSPACE/$GOLANG_RELEASE_PATH"
+        GIT_USER_NAME="${{ inputs.git_user_name }}"
+        GIT_USER_EMAIL="${{ inputs.git_user_email }}"
+        PACKAGES='${{ inputs.packages }}'
+        PACKAGES_TO_REMOVE='${{ inputs.packages_to_remove }}'
+        PRIVATE_YML="${{ inputs.private_yml }}"
+        RELEASE_DIR="${{ inputs.release_dir }}"
+
+        cd "$CFLINUXFS_RELEASE_PATH/$RELEASE_DIR"
+
+        git config user.name "$GIT_USER_NAME"
+        git config user.email "$GIT_USER_EMAIL"
+
+        for package_to_remove in $(echo "$PACKAGES_TO_REMOVE" | jq -r '.[]'); do
+          rm -rf "packages/$package_to_remove"
+        done
+
+        echo "$PRIVATE_YML" > config/private.yml
+
+        mkdir -p "$GOLANG_RELEASE_ABS/config"
+        if ! grep -q '^name:' "$GOLANG_RELEASE_ABS/config/final.yml" 2>/dev/null; then
+          echo "name: bosh-package-golang-release" > "$GOLANG_RELEASE_ABS/config/final.yml"
+        fi
+        echo "=== $GOLANG_RELEASE_ABS/config/final.yml ==="
+        cat -A "$GOLANG_RELEASE_ABS/config/final.yml"
+
+        pushd "$GOLANG_RELEASE_ABS"
+        bosh create-release --force --tarball=tmp.tgz
+        rm tmp.tgz
+        popd
+
+        for package in $(echo "$PACKAGES" | jq -r '.[]'); do
+          bosh vendor-package "$package" "$GOLANG_RELEASE_ABS"
+        done
+
+        rm -f config/private.yml || true
+        echo "Cleaned up private.yml"
+
+        if [[ -z "$(git status --porcelain)" ]]; then
+          echo "No changes to commit."
+          echo "changes_detected=false" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        git add -A
+
+        package_list=$(echo "$PACKAGES" | jq -r 'join(", ")')
+        first_package=$(echo "$PACKAGES" | jq -r '.[0]')
+        first_version=$(cat "$GOLANG_RELEASE_ABS/packages/$first_package/version")
+        removed_list=$(echo "$PACKAGES_TO_REMOVE" | jq -r '. | join(", ")')
+
+        git commit -m "Update $package_list packages to $first_version from golang-release
+
+        Removed: $removed_list"
+        
+        git push origin HEAD
+        
+        echo "changes_detected=true" >> $GITHUB_OUTPUT

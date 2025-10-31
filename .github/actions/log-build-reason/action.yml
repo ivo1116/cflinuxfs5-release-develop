@@ -1,0 +1,36 @@
+name: 'Log Build Reason'
+description: 'Log the reason for triggering the build'
+
+inputs:
+  trigger_reason:
+    description: 'Build trigger reason'
+    required: true
+  cves_detected:
+    description: 'Whether CVEs were detected'
+    required: false
+    default: 'false'
+  golang_updated:
+    description: 'Whether Golang was updated'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Log build reason
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        echo "=== BUILD TRIGGERED ==="
+        echo "Reason: ${{ inputs.trigger_reason }}"
+        
+        if [[ "${{ inputs.cves_detected }}" == "true" ]]; then
+          echo "✓ New CVEs were detected and processed"
+        fi
+        
+        if [[ "${{ inputs.golang_updated }}" == "true" ]]; then
+          echo "✓ Golang packages were updated"
+        fi
+        
+        echo "======================"

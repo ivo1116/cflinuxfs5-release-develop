@@ -1,0 +1,27 @@
+name: 'Update Version in S3'
+description: 'Write version string to an S3 key (versions file)'
+
+inputs:
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  key:
+    description: 'S3 object key to write (e.g., versions/stack-{your-cflinuxfs-version})'
+    required: true
+  version:
+    description: 'Version string to write'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Write version to S3
+      shell: bash
+      run: |
+        set -euo pipefail
+        TMP="$(mktemp)"
+        echo "${{ inputs.version }}" > "$TMP"
+        aws s3 cp "$TMP" "s3://${{ inputs.bucket_name }}/${{ inputs.key }}" \
+          --no-progress --content-type text/plain
+        rm -f "$TMP"
+        echo "Version ${{ inputs.version }} written to s3://${{ inputs.bucket_name }}/${{ inputs.key }}"

@@ -1,0 +1,115 @@
+name: 'Build and Process Rootfs'
+description: 'Complete rootfs build and processing pipeline'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Version to build'
+    required: true
+  previous_version:
+    description: 'Previous version for diff'
+    required: false
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  release_repo:
+    description: 'BOSH release repository'
+    required: true
+  cflinuxfs_repo:
+    description: 'cflinuxfs repository'
+    required: true
+  go_version:
+    description: 'Go version'
+    required: true
+  cflinuxfs_deploy_key:
+    description: 'SSH deploy key for cflinuxfs repo'
+    required: true
+  release_deploy_key:
+    description: 'SSH deploy key for release repo'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+
+    - name: Checkout buildpacks-ci
+      uses: actions/checkout@v4
+      with:
+        repository: cloudfoundry/buildpacks-ci
+        ref: master
+        path: buildpacks-ci
+
+    - name: Checkout cflinuxfs repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.cflinuxfs_repo }}
+        ref: main
+        path: ${{ inputs.stack }}
+        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
+
+    - name: Make rootfs
+      uses: ./.github/actions/make-rootfs
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        privileged: true
+
+    - name: Generate receipt diff
+      uses: ./.github/actions/generate-receipt-diff
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        previous_version: ${{ inputs.previous_version }}
+        bucket_name: ${{ inputs.bucket_name }}
+
+    - name: Build cflinuxfs BOSH release
+      uses: ./.github/actions/create-bosh-release
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        release_name: ${{ inputs.stack }}
+        release_repo: ${{ inputs.release_repo }}
+        release_deploy_key:  ${{ inputs.release_deploy_key }}
+        go_version: ${{ inputs.go_version }}
+        aws_region: ${{ inputs.aws_region }}
+        final: false
+
+    - name: Upload stack to S3
+      uses: ./.github/actions/upload-s3
+      with:
+        upload_type: stack
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+
+    - name: Upload receipt to S3
+      uses: ./.github/actions/upload-s3
+      with:
+        upload_type: receipt
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+
+    - name: Upload BOSH release to S3
+      uses: ./.github/actions/upload-s3
+      with:
+        upload_type: release
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        file: rootfs-artifacts/${{ inputs.stack }}-release-${{ inputs.version }}.tgz
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: rootfs-build-${{ inputs.version }}
+        path: |
+          rootfs-artifacts/
+          receipt-artifacts/
+          public-robots-artifacts/
+        retention-days: 30

@@ -1,0 +1,136 @@
+name: 'BBL Up'
+description: 'Set up test environment using BBL'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Version number'
+    required: true
+  env_name:
+    description: 'Environment name'
+    required: true
+    default: 'cflinuxfs5-test'
+  gcp_project_id:
+    description: 'GCP Project ID'
+    required: true
+  gcp_zone:
+    description: 'GCP Zone'
+    required: false
+    default: 'us-central1-a'
+  gcp_region:
+    description: 'GCP Region'
+    required: false
+    default: 'us-central1'
+  lb_domain:
+    description: 'Load balancer domain'
+    required: true
+    default: ''
+  bbl_state_repo:
+    description: 'Repo for BBL state (owner/repo)'
+    required: true
+  bbl_state_branch:
+    description: 'Branch for BBL state'
+    required: false
+    default: 'main'
+  bbl_state_deploy_key:
+    description: 'Deploy key for BBL state'
+    required: true
+
+outputs:
+  success:
+    description: 'Whether BBL up succeeded'
+    value: ${{ steps.bbl-up.outputs.success }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout BBL state repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.bbl_state_repo }}
+        ref: ${{ inputs.bbl_state_branch }}
+        path: bbl-state
+        ssh-key: ${{ inputs.bbl_state_deploy_key }}
+
+    - name: Install BBL, Terraform, BOSH CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        wget -O /tmp/bbl https://github.com/Ivo1116/bosh-bootloader/releases/download/test/bbl-linux
+        chmod +x /tmp/bbl
+        sudo mv /tmp/bbl /usr/local/bin/bbl
+
+        wget -O /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+        unzip /tmp/terraform.zip -d /tmp/
+        sudo mv /tmp/terraform /usr/local/bin/terraform
+
+        wget -O /tmp/bosh https://github.com/cloudfoundry/bosh-cli/releases/download/v7.4.0/bosh-cli-7.4.0-linux-amd64
+        chmod +x /tmp/bosh
+        sudo mv /tmp/bosh /usr/local/bin/bosh
+
+    - name: Run BBL Up
+      id: bbl-up
+      shell: bash
+
+      run: |
+        set -euo pipefail
+        export PATH="/usr/local/bin:$PATH"
+
+        mkdir -p bbl-state/${{ inputs.env_name }}
+        cd bbl-state/${{ inputs.env_name }}
+
+        printf "%s" "${GCP_SERVICE_ACCOUNT_KEY}" > gcp-key.json
+
+        export BBL_GCP_SERVICE_ACCOUNT_KEY="$(pwd)/gcp-key.json"
+        export BBL_GCP_PROJECT_ID="${{ inputs.gcp_project_id }}"
+        export BBL_GCP_ZONE="${{ inputs.gcp_zone }}"
+        export BBL_GCP_REGION="${{ inputs.gcp_region }}"
+        export BBL_IAAS=gcp
+
+        if [[ -n "${CFLINUXFS5_LB_CERT:-}" && -n "${CFLINUXFS5_LB_KEY:-}" ]]; then
+          printf "%s" "${CFLINUXFS5_LB_CERT}" > lb-cert.pem
+          printf "%s" "${CFLINUXFS5_LB_KEY}" > lb-key.pem
+          export BBL_LB_CERT="$(pwd)/lb-cert.pem"
+          export BBL_LB_KEY="$(pwd)/lb-key.pem"
+        fi
+
+        if [[ -n "${{ inputs.lb_domain }}" ]]; then
+          export LB_DOMAIN="${{ inputs.lb_domain }}"
+        fi
+
+        bbl up \
+          --terraform-binary /usr/local/bin/terraform \
+          --debug \
+          --lb-type cf \
+          ${BBL_LB_CERT:+--lb-cert "$BBL_LB_CERT"} \
+          ${BBL_LB_KEY:+--lb-key "$BBL_LB_KEY"} \
+          ${LB_DOMAIN:+--lb-domain "$LB_DOMAIN"}
+
+        echo "success=true" >> "$GITHUB_OUTPUT"
+
+    - name: Commit and push BBL state
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd bbl-state
+        git config user.name "CF Buildpacks Eng Bot"
+        git config user.email "tanzu-buildpacks.pdl@broadcom.com"
+        
+        echo "*/gcp-key.json" >> .gitignore
+        echo "*/service-account-key.json" >> .gitignore
+        echo "*/*-key.json" >> .gitignore
+        echo "*/*.key" >> .gitignore
+        echo "*/*.pem" >> .gitignore
+        echo "*/private_key" >> .gitignore
+        echo "*/id_rsa*" >> .gitignore
+        
+        if [[ -n "$(git status --porcelain)" ]]; then
+          git add -A
+          git commit -m "Update BBL state for ${{ inputs.env_name }}"
+          git push origin ${{ inputs.bbl_state_branch }}
+        else
+          echo "No BBL state changes to commit."
+        fi

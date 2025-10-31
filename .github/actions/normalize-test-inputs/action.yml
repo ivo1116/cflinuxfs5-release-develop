@@ -1,0 +1,72 @@
+name: 'Normalize Test Inputs'
+description: 'Normalize inputs from repository_dispatch and workflow_dispatch events for testing'
+
+inputs:
+  repository_dispatch_version:
+    description: 'Version from repository_dispatch event'
+    required: false
+  workflow_dispatch_version:
+    description: 'Version from workflow_dispatch event'
+    required: false
+  skip_cleanup:
+    description: 'Skip cleanup'
+    required: false
+    default: 'true'
+  skip_setup:
+    description: 'Skip setup'
+    required: false
+    default: 'true'
+  skip_deploy:
+    description: 'Skip deploy'
+    required: false
+    default: 'true'
+  skip_cats:
+    description: 'Skip CATs'
+    required: false
+    default: 'false'
+
+outputs:
+  version:
+    description: 'Resolved version'
+    value: ${{ steps.normalize.outputs.version }}
+  skip_cleanup:
+    description: 'Normalized skip cleanup flag'
+    value: ${{ steps.normalize.outputs.skip_cleanup }}
+  skip_setup:
+    description: 'Normalized skip setup flag'
+    value: ${{ steps.normalize.outputs.skip_setup }}
+  skip_deploy:
+    description: 'Normalized skip deploy flag'
+    value: ${{ steps.normalize.outputs.skip_deploy }}
+  skip_cats:
+    description: 'Normalized skip CATs flag'
+    value: ${{ steps.normalize.outputs.skip_cats }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Normalize inputs
+      id: normalize
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        # Determine version from either event type
+        version="${{ inputs.repository_dispatch_version || inputs.workflow_dispatch_version }}"
+        if [[ -z "$version" ]]; then
+          echo "ERROR: No version provided"
+          exit 1
+        fi
+        
+        echo "version=$version" >> $GITHUB_OUTPUT
+        echo "skip_cleanup=${{ inputs.skip_cleanup }}" >> $GITHUB_OUTPUT
+        echo "skip_setup=${{ inputs.skip_setup }}" >> $GITHUB_OUTPUT
+        echo "skip_deploy=${{ inputs.skip_deploy }}" >> $GITHUB_OUTPUT
+        echo "skip_cats=${{ inputs.skip_cats }}" >> $GITHUB_OUTPUT
+        
+        echo "Normalized version: $version"
+        echo "Test configuration:"
+        echo "  skip_cleanup: ${{ inputs.skip_cleanup }}"
+        echo "  skip_setup: ${{ inputs.skip_setup }}"
+        echo "  skip_deploy: ${{ inputs.skip_deploy }}"
+        echo "  skip_cats: ${{ inputs.skip_cats }}"

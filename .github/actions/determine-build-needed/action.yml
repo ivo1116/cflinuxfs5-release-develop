@@ -1,0 +1,67 @@
+name: 'Determine Build Needed'
+description: 'Determine if a build is needed based on triggers'
+
+inputs:
+  cves_detected:
+    description: 'Whether CVEs were detected'
+    required: false
+    default: 'false'
+  golang_updated:
+    description: 'Whether Golang was updated'
+    required: false
+    default: 'false'
+  event_name:
+    description: 'GitHub event name'
+    required: true
+  event_action:
+    description: 'GitHub event action'
+    required: false
+  trigger_reason:
+    description: 'Manual trigger reason'
+    required: false
+
+outputs:
+  should_build:
+    description: 'Whether build should proceed'
+    value: ${{ steps.decide.outputs.should_build }}
+  reason:
+    description: 'Reason for build decision'
+    value: ${{ steps.decide.outputs.reason }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Determine if build is needed
+      id: decide
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        reasons=()
+        
+        if [[ "${{ inputs.cves_detected }}" == "true" ]]; then
+          reasons+=("New CVEs detected")
+        fi
+        
+        if [[ "${{ inputs.golang_updated }}" == "true" ]]; then
+          reasons+=("Golang packages updated")
+        fi
+        
+        if [[ "${{ inputs.event_name }}" == "workflow_dispatch" ]]; then
+          reasons+=("Manual trigger: ${{ inputs.trigger_reason || 'Manual trigger' }}")
+        fi
+        
+        if [[ "${{ inputs.event_name }}" == "repository_dispatch" ]]; then
+          reasons+=("Repository dispatch: ${{ inputs.event_action }}")
+        fi
+        
+        if [[ "${#reasons[@]}" -gt 0 ]]; then
+          echo "should_build=true" >> $GITHUB_OUTPUT
+          IFS=", "
+          echo "reason=${reasons[*]}" >> $GITHUB_OUTPUT
+          echo "Build needed: ${reasons[*]}"
+        else
+          echo "should_build=false" >> $GITHUB_OUTPUT
+          echo "reason=No build trigger conditions met" >> $GITHUB_OUTPUT
+          echo "No build needed"
+        fi

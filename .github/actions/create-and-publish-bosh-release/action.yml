@@ -1,0 +1,122 @@
+name: 'Create and Publish BOSH Release'
+description: 'Create BOSH release and publish to GitHub'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Release version'
+    required: true
+  release_repo:
+    description: 'BOSH release repository'
+    required: true
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  default_branch:
+    description: 'Default branch'
+    required: true
+  git_user_name:
+    description: 'Git user name'
+    required: true
+  git_user_email:
+    description: 'Git user email'
+    required: true
+  go_version:
+    description: 'Go version'
+    required: true
+  aws_region:
+    description: 'S3 bucket AWS region'
+    required: true
+  owner:
+    description: 'Repository owner'
+    required: true
+  github_token:
+    description: 'Release token'
+    required: true
+  release_deploy_key:
+    description: 'SSH deploy key for release repo'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+    - name: Checkout release repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.owner }}/${{ inputs.release_repo }}
+        ref: ${{ inputs.default_branch }}
+        path: release
+        ssh-key: ${{ inputs.release_deploy_key }}
+        persist-credentials: true
+
+    - name: Download final stack from S3
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: stack
+
+    - name: Configure BOSH blobstore
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        mkdir -p ~/.aws
+        cat > ~/.aws/credentials <<EOF
+        [default]
+        aws_access_key_id = $AWS_ACCESS_KEY_ID
+        aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
+        aws_session_token = $AWS_SESSION_TOKEN
+        EOF
+
+    - name: Create final BOSH release
+      uses: ./.github/actions/create-bosh-release
+      with:
+        release_dir: release
+        stack: ${{ inputs.stack }}
+        bucket_name: ${{ inputs.bucket_name }}
+        version: ${{ inputs.version }}
+        release_name: ${{ inputs.stack }}-release
+        release_repo: ${{ inputs.owner }}/${{ inputs.release_repo }}
+        go_version: ${{ inputs.go_version }}
+        aws_region: ${{ inputs.aws_region }}
+        final: true
+
+    - name: Upload BOSH release to S3
+      uses: ./.github/actions/upload-s3
+      with:
+        upload_type: release
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        stack: ${{ inputs.stack }}
+        file: rootfs-artifacts/${{ inputs.stack }}-release-${{ inputs.version }}.tgz
+
+    - name: Create BOSH release notes
+      uses: ./.github/actions/create-bosh-release-notes
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+
+    - name: Commit and push release repo
+      id: rel_commit
+      uses: ./.github/actions/create-bosh-release-commit
+      with:
+        release_dir: release
+        git_user_name: ${{ inputs.git_user_name }}
+        git_user_email: ${{ inputs.git_user_email }}
+
+    - name: Publish BOSH GitHub Release
+      uses: ./.github/actions/upload-to-github
+      with:
+        github_token: ${{ inputs.github_token }}
+        stack: ${{ inputs.stack }}
+        bucket_name: ${{ inputs.bucket_name }}
+        type: release
+        version: ${{ inputs.version }}
+        owner: ${{ inputs.owner }}
+        repo: ${{ inputs.release_repo }}

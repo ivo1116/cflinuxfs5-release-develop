@@ -1,0 +1,133 @@
+name: 'Delete RC Artifacts'
+description: 'Delete RC artifacts from S3 after final release'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  rc_version:
+    description: 'RC version to delete'
+    required: true
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  artifact_types:
+    description: 'Comma-separated list of artifact types to delete (stack,receipt,release)'
+    required: true
+    default: 'stack,receipt,release'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Delete RC artifacts from S3
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        STACK="${{ inputs.stack }}"
+        RC_VERSION="${{ inputs.rc_version }}"
+        BUCKET="${{ inputs.bucket_name }}"
+        ARTIFACT_TYPES="${{ inputs.artifact_types }}"
+        
+        echo "=== Deleting RC artifacts for version $RC_VERSION ==="
+        
+        IFS=',' read -ra TYPES <<< "$ARTIFACT_TYPES"
+        
+        for type in "${TYPES[@]}"; do
+          type=$(echo "$type" | xargs)  
+          
+          case "$type" in
+            "stack")
+              KEY="rootfs/${STACK}-${RC_VERSION}.tar.gz"
+              echo "Deleting stack: s3://${BUCKET}/${KEY}"
+              if aws s3 rm "s3://${BUCKET}/${KEY}" 2>/dev/null; then
+                echo "Deleted stack artifact"
+              else
+                echo "Stack artifact not found or already deleted"
+              fi
+              ;;
+              
+            "receipt")
+              KEY="rootfs/receipt.${STACK}.x86_64-${RC_VERSION}"
+              echo "Deleting receipt: s3://${BUCKET}/${KEY}"
+              if aws s3 rm "s3://${BUCKET}/${KEY}" 2>/dev/null; then
+                echo "Deleted receipt artifact"
+              else
+                echo "Receipt artifact not found or already deleted"
+              fi
+              ;;
+              
+            "release")
+              KEY="rootfs/${STACK}-release-${RC_VERSION}.tgz"
+              echo "Deleting BOSH release: s3://${BUCKET}/${KEY}"
+              if aws s3 rm "s3://${BUCKET}/${KEY}" 2>/dev/null; then
+                echo "Deleted release artifact"
+              else
+                echo "Release artifact not found or already deleted"
+              fi
+              ;;
+              
+            *)
+              echo "Unknown artifact type: $type (skipping)"
+              ;;
+          esac
+        done
+        
+        echo "=== RC cleanup completed ==="
+
+    - name: Verify deletion
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        STACK="${{ inputs.stack }}"
+        RC_VERSION="${{ inputs.rc_version }}"
+        BUCKET="${{ inputs.bucket_name }}"
+        ARTIFACT_TYPES="${{ inputs.artifact_types }}"
+        
+        echo "=== Verifying RC artifacts are deleted ==="
+        
+        IFS=',' read -ra TYPES <<< "$ARTIFACT_TYPES"
+        all_deleted=true
+        
+        for type in "${TYPES[@]}"; do
+          type=$(echo "$type" | xargs)
+          
+          case "$type" in
+            "stack")
+              KEY="rootfs/${STACK}-${RC_VERSION}.tar.gz"
+              if aws s3 ls "s3://${BUCKET}/${KEY}" 2>/dev/null; then
+                echo "✗ Stack artifact still exists"
+                all_deleted=false
+              else
+                echo "Stack artifact confirmed deleted"
+              fi
+              ;;
+              
+            "receipt")
+              KEY="rootfs/receipt.${STACK}.x86_64-${RC_VERSION}"
+              if aws s3 ls "s3://${BUCKET}/${KEY}" 2>/dev/null; then
+                echo "Receipt artifact still exists"
+                all_deleted=false
+              else
+                echo "Receipt artifact confirmed deleted"
+              fi
+              ;;
+              
+            "release")
+              KEY="rootfs/${STACK}-release-${RC_VERSION}.tgz"
+              if aws s3 ls "s3://${BUCKET}/${KEY}" 2>/dev/null; then
+                echo "✗ Release artifact still exists"
+                all_deleted=false
+              else
+                echo "Release artifact confirmed deleted"
+              fi
+              ;;
+          esac
+        done
+        
+        if [[ "$all_deleted" == "true" ]]; then
+          echo "All RC artifacts successfully deleted"
+        else
+          echo "Some RC artifacts may still exist"
+        fi

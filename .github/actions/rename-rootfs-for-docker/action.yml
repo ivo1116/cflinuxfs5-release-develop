@@ -1,0 +1,24 @@
+name: 'Prepare Docker Import Tar'
+description: 'Copy rootfs tar into docker-s3/<stack>.tar.gz for docker import'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Prepare docker tar
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p docker-s3
+        SRC=(rootfs-artifacts/${{ inputs.stack }}-*.tar.gz)
+        if [[ ! -f "${SRC[0]}" ]]; then
+          echo "ERROR: Could not find rootfs tar in rootfs-artifacts/"
+          ls -la rootfs-artifacts/ || true
+          exit 1
+        fi
+        cp "${SRC[0]}" "docker-s3/${{ inputs.stack }}.tar.gz"
+        echo "Prepared docker import tar: docker-s3/${{ inputs.stack }}.tar.gz"

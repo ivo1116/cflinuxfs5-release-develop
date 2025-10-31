@@ -1,0 +1,43 @@
+name: 'Generate Release Summary'
+description: 'Generate release summary for GitHub Actions summary'
+
+inputs:
+  final_version:
+    description: 'Final version released'
+    required: false
+  next_rc:
+    description: 'Next RC version'
+    required: false
+  rootfs_result:
+    description: 'Rootfs repo release result'
+    required: false
+  github_result:
+    description: 'GitHub release result'
+    required: false
+  docker_result:
+    description: 'Docker release result'
+    required: false
+  bosh_result:
+    description: 'BOSH release result'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate summary
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        {
+          echo "## Release Summary"
+          echo ""
+          echo "**Final Version**: ${{ inputs.final_version || 'N/A' }}"
+          echo "**Next RC**: ${{ inputs.next_rc || 'N/A' }}"
+          echo ""
+          echo "### Component Results:"
+          echo "- Rootfs repo: ${{ inputs.rootfs_result || 'skipped' }}"
+          echo "- GitHub Release: ${{ inputs.github_result || 'skipped' }}"
+          echo "- Docker: ${{ inputs.docker_result || 'skipped' }}"
+          echo "- BOSH Release: ${{ inputs.bosh_result || 'skipped' }}"
+        } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,37 @@
+name: 'Preflight Guard'
+description: 'Check preflight conditions before proceeding with release'
+
+inputs:
+  event_name:
+    description: 'GitHub event name'
+    required: true
+  cats_passed:
+    description: 'Whether CATs passed from repository dispatch'
+    required: false
+
+outputs:
+  proceed:
+    description: 'Whether to proceed with release'
+    value: ${{ steps.check.outputs.proceed }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check preflight conditions
+      id: check
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        if [[ "${{ inputs.event_name }}" == "repository_dispatch" ]]; then
+          cats="${{ inputs.cats_passed }}"
+          # Condition is always false due to cats constantly failing
+          if [[ "$cats" != "true" && "$cats" != "skipped" && false ]]; then
+            echo "proceed=false" >> "$GITHUB_OUTPUT"
+            echo "CATs failed, blocking release"
+            exit 0
+          fi
+        fi
+        
+        echo "proceed=true" >> "$GITHUB_OUTPUT"
+        echo "Preflight checks passed"

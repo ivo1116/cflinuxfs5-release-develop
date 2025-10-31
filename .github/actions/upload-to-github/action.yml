@@ -1,0 +1,94 @@
+name: 'Upload to GitHub'
+description: 'Create GitHub release and upload artifacts'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  type:
+    description: 'Type of upload(release || stack)'
+    default: 'stack'
+  version:
+    description: 'Release version'
+    required: true
+  previous_version:
+    description: 'Previous version for diff'
+    required: false
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  github_token:
+    description: 'GitHub token'
+    required: true
+  owner:
+    description: 'Repository owner'
+    required: true
+  repo:
+    description: 'Repository name'
+    required: true
+  include_receipt:
+    description: 'Include receipt file in release'
+    required: false
+    default: 'false'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+
+    - name: Download final stack from S3
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: ${{ inputs.type }}
+
+    - name: Download final receipt from S3
+      if: inputs.include_receipt == 'true'
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: receipt
+
+    - name: Generate release notes
+      uses: ./.github/actions/generate-release-notes
+      with:
+        stack: ${{ inputs.stack }}
+        type: ${{ inputs.type }}
+        current_version: ${{ inputs.version }}
+        previous_version: ${{ inputs.previous_version }}
+
+    - name: Prepare release assets
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p release-assets
+        
+        if [[ "${{ inputs.type }}" == "stack" ]]; then
+          cp rootfs-artifacts/${{ inputs.stack }}-*.tar.gz release-assets/
+          if [[ "${{ inputs.include_receipt }}" == "true" ]]; then
+            if [[ -f receipt-artifacts/receipt.${{ inputs.stack }}.x86_64-${{ inputs.version }} ]]; then
+              cp receipt-artifacts/receipt.${{ inputs.stack }}.x86_64-${{ inputs.version }} release-assets/
+            fi
+          fi
+        elif [[ "${{ inputs.type }}" == "release" ]]; then
+          cp rootfs-artifacts/${{ inputs.stack }}-release-${{ inputs.version }}.tgz release-assets/
+        fi
+        
+        echo "Release assets prepared:"
+        ls -la release-assets/
+
+    - name: Create GitHub Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: ${{ inputs.version }}
+        repository: ${{ inputs.owner }}/${{ inputs.repo }}
+        tag_name: ${{ inputs.version }}
+        body_path: release-body/body
+        files: release-assets/*
+      env:
+        GITHUB_TOKEN: ${{ inputs.github_token }}

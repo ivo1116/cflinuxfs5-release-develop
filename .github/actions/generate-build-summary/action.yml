@@ -1,0 +1,62 @@
+name: 'Generate Build Summary'
+description: 'Generate build summary for GitHub Actions summary'
+
+inputs:
+  cves_detected:
+    description: 'CVEs detected flag'
+    required: false
+  golang_updated:
+    description: 'Golang updated flag'
+    required: false
+  should_build:
+    description: 'Should build flag'
+    required: false
+  trigger_reason:
+    description: 'Build trigger reason'
+    required: false
+  gather_result:
+    description: 'Gather resources result'
+    required: false
+  build_result:
+    description: 'Build result' 
+    required: false
+  version:
+    description: 'Built version' 
+    required: false
+
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate build summary
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        {
+          echo "## Build Summary"
+          echo ""
+          
+          if [[ "${{ inputs.cves_detected }}" == "true" ]]; then
+            echo "**CVE Check**: New CVEs detected and processed"
+          else
+            echo "**CVE Check**: No new CVEs found"
+          fi
+          
+          if [[ "${{ inputs.golang_updated }}" == "true" ]]; then
+            echo "**Golang Check**: Golang packages updated"
+          else
+            echo "**Golang Check**: No Golang updates found"
+          fi
+          
+          if [[ "${{ inputs.should_build }}" == "true" ]]; then
+            echo "**Build**: ${{ inputs.trigger_reason }}"
+            if [[ "${{ inputs.gather_result }}" == "success" && "${{ inputs.build_result }}" == "success" ]]; then
+              echo "**Result**: Build completed successfully (v${{ inputs.version }})"
+            else
+              echo "**Result**: Build failed"
+            fi
+          else
+            echo "**Build**: Skipped - no trigger conditions met"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,58 @@
+name: 'Normalize Inputs'
+description: 'Normalize inputs from repository_dispatch and workflow_dispatch events'
+
+inputs:
+  repository_dispatch_version:
+    description: 'Version from repository_dispatch event'
+    required: false
+  workflow_dispatch_version:
+    description: 'Version from workflow_dispatch event'
+    required: false
+  skip_github_release:
+    description: 'Skip GitHub release'
+    required: false
+    default: 'false'
+  skip_docker_release:
+    description: 'Skip Docker release'
+    required: false
+    default: 'false'
+  skip_bosh_release:
+    description: 'Skip BOSH release'
+    required: false
+    default: 'false'
+
+outputs:
+  rc_version:
+    description: 'Resolved RC version'
+    value: ${{ steps.normalize.outputs.rc_version }}
+  skip_github_release:
+    description: 'Normalized skip GitHub release flag'
+    value: ${{ steps.normalize.outputs.skip_github_release }}
+  skip_docker_release:
+    description: 'Normalized skip Docker release flag'
+    value: ${{ steps.normalize.outputs.skip_docker_release }}
+  skip_bosh_release:
+    description: 'Normalized skip BOSH release flag'
+    value: ${{ steps.normalize.outputs.skip_bosh_release }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Normalize inputs
+      id: normalize
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        version="${{ inputs.repository_dispatch_version || inputs.workflow_dispatch_version }}"
+        if [[ -z "$version" ]]; then
+          echo "ERROR: No version provided"
+          exit 1
+        fi
+        
+        echo "rc_version=$version" >> $GITHUB_OUTPUT
+        echo "skip_github_release=${{ inputs.skip_github_release }}" >> $GITHUB_OUTPUT
+        echo "skip_docker_release=${{ inputs.skip_docker_release }}" >> $GITHUB_OUTPUT
+        echo "skip_bosh_release=${{ inputs.skip_bosh_release }}" >> $GITHUB_OUTPUT
+        
+        echo "Normalized version: $version"

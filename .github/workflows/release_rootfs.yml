@@ -1,0 +1,226 @@
+name: Release Rootfs
+
+on:
+  repository_dispatch:
+    types: [rootfs-tests-completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: RC version to release (e.g. 1.2.0-rc.4)
+        required: true
+        default: 1.0.0-rc.1
+      skip_github_release:
+        description: Skip GitHub release
+        type: boolean
+        default: false
+      skip_docker_release:
+        description: Skip Docker release
+        type: boolean
+        default: false
+      skip_bosh_release:
+        description: Skip BOSH release
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+concurrency:
+  group:  cflinusfs
+  cancel-in-progress: false
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  resolve-inputs:
+    name: Resolve Inputs
+    runs-on: ubuntu-latest
+    outputs:
+      rc_version: ${{ steps.set-vars.outputs.rc_version }}
+      final_version: ${{ steps.final.outputs.final_version }}
+      previous_tag: ${{ steps.previous.outputs.previous_tag }}
+      proceed: ${{ steps.guard.outputs.proceed }}
+      skip_github_release: ${{ steps.set-vars.outputs.skip_github_release }}
+      skip_docker_release: ${{ steps.set-vars.outputs.skip_docker_release }}
+      skip_bosh_release: ${{ steps.set-vars.outputs.skip_bosh_release }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Normalize inputs
+        id: set-vars
+        uses: ./.github/actions/normalize-inputs
+        with:
+          repository_dispatch_version: ${{ github.event.client_payload.version }}
+          workflow_dispatch_version: ${{ github.event.inputs.version }}
+          skip_github_release: ${{ github.event.client_payload.skip_github_release || github.event.inputs.skip_github_release || 'false' }}
+          skip_docker_release: ${{ github.event.client_payload.skip_docker_release || github.event.inputs.skip_docker_release || 'false' }}
+          skip_bosh_release: ${{ github.event.client_payload.skip_bosh_release || github.event.inputs.skip_bosh_release || 'false' }}
+
+      - name: Preflight guard
+        id: guard
+        uses: ./.github/actions/preflight-guard
+        with:
+          event_name: ${{ github.event_name }}
+          cats_passed: ${{ github.event.client_payload.cats_passed }}
+
+      - name: Finalize version (rc -> final)
+        id: final
+        uses: ./.github/actions/finalize-version
+        with:
+          rc_version: ${{ steps.set-vars.outputs.rc_version }}
+
+      - name: Get previous release tag
+        id: previous
+        uses: ./.github/actions/get-previous-release-tag
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ vars.STACK }}
+
+  release-rootfs-repo:
+    name: Release Rootfs Repo
+    runs-on: ubuntu-latest
+    needs: [resolve-inputs]
+    if: needs.resolve-inputs.outputs.proceed == 'true'
+    outputs:
+      final_version: ${{ needs.resolve-inputs.outputs.final_version }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Release rootfs repository
+        uses: ./.github/actions/release-rootfs-repo
+        with:
+          rootfs_repo: ${{ vars.ROOTFS_REPO }}
+          stack: ${{ vars.STACK }}
+          rc_version: ${{ needs.resolve-inputs.outputs.rc_version }}
+          final_version: ${{ needs.resolve-inputs.outputs.final_version }}
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          default_branch: ${{ vars.DEFAULT_BRANCH }}
+          cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
+
+  reset-version-to-rc:
+    name: Reset to Next Minor RC
+    runs-on: ubuntu-latest
+    needs: [release-rootfs-repo]
+    outputs:
+      next_rc: ${{ steps.bump.outputs.next_rc }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Bump to next minor rc
+        id: bump
+        uses: ./.github/actions/bump-next-minor-rc
+        with:
+          final_version: ${{ needs.release-rootfs-repo.outputs.final_version }}
+
+      - name: Persist next RC to S3
+        uses: ./.github/actions/update-version-s3
+        with:
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          key: versions/stack-${{ vars.STACK }}
+          version: ${{ steps.bump.outputs.next_rc }}
+
+  upload-to-github:
+    name: Upload to GitHub
+    runs-on: ubuntu-latest
+    needs: [release-rootfs-repo, resolve-inputs]
+    if: needs.resolve-inputs.outputs.skip_github_release != 'true'
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Upload to GitHub release
+        uses: ./.github/actions/upload-to-github
+        with:
+          stack: ${{ vars.STACK }}
+          version: ${{ needs.release-rootfs-repo.outputs.final_version }}
+          previous_version: ${{ needs.resolve-inputs.outputs.previous_tag }}
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          github_token: ${{ secrets.CFLINUXFS5_PAT }}
+          owner: ${{ github.repository_owner }}
+          repo: ${{ vars.STACK }}
+          include_receipt: 'true'
+
+  upload-to-docker:
+    name: Upload to Docker Hub
+    runs-on: ubuntu-latest
+    needs: [release-rootfs-repo, resolve-inputs]
+    if: needs.resolve-inputs.outputs.skip_docker_release != 'true'
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Upload to Docker Hub
+        uses: ./.github/actions/upload-to-docker
+        with:
+          stack: ${{ vars.STACK }}
+          version: ${{ needs.release-rootfs-repo.outputs.final_version }}
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          docker_image: ${{ vars.DOCKER_IMAGE }}
+          dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
+          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  create-bosh-release:
+    name: Create and Publish BOSH Release
+    runs-on: ubuntu-latest
+    needs: [release-rootfs-repo, resolve-inputs]
+    if: needs.resolve-inputs.outputs.skip_bosh_release != 'true'
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Create and publish BOSH release
+        uses: ./.github/actions/create-and-publish-bosh-release
+        with:
+          stack: ${{ vars.STACK }}
+          version: ${{ needs.release-rootfs-repo.outputs.final_version }}
+          release_repo: ${{ vars.STACK }}-release
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          default_branch: ${{ vars.DEFAULT_BRANCH }}
+          git_user_name: ${{ vars.STACK }}-bot
+          git_user_email: ${{ vars.STACK }}-bot@test.com
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          go_version: ${{ vars.GOLANG_VERSION }}
+          aws_region: ${{ vars.AWS_REGION }}
+          owner: ${{ vars.REPO_OWNER }}
+          release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+
+      - name: Delete RC BOSH release artifact
+        uses: ./.github/actions/delete-rc-artifacts
+        with:
+          stack: ${{ vars.STACK }}
+          rc_version: ${{ needs.resolve-inputs.outputs.rc_version }}
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          artifact_types: 'stack, receipt, release'
+
+  summary:
+    name: Release Summary
+    runs-on: ubuntu-latest
+    needs:
+      - resolve-inputs
+      - release-rootfs-repo
+      - reset-version-to-rc
+      - upload-to-github
+      - upload-to-docker
+      - create-bosh-release
+    if: always()
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Generate release summary
+        uses: ./.github/actions/generate-release-summary
+        with:
+          final_version: ${{ needs.release-rootfs-repo.outputs.final_version }}
+          next_rc: ${{ needs.reset-version-to-rc.outputs.next_rc }}
+          rootfs_result: ${{ needs.release-rootfs-repo.result }}
+          github_result: ${{ needs.upload-to-github.result }}
+          docker_result: ${{ needs.upload-to-docker.result }}
+          bosh_result: ${{ needs.create-bosh-release.result }}

@@ -1,0 +1,33 @@
+name: 'Update Rootfs Receipt'
+description: 'Produce final receipt file from RC receipt'
+
+inputs:
+  stack:
+    description: 'Stack name (e.g. {your-cflinuxfs-version})'
+    required: true
+  rc_version:
+    description: 'RC version to finalize'
+    required: true
+  final_version:
+    description: 'Final version string'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Update receipt version
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        in="receipt-artifacts/receipt.${{ inputs.stack }}.x86_64-${{ inputs.rc_version }}"
+        out_dir="receipt-archive"
+        out="${out_dir}/receipt.${{ inputs.stack }}.x86_64-${{ inputs.final_version }}"
+        
+        test -f "$in" || { echo "Missing $in"; exit 1; }
+        mkdir -p "$out_dir"
+        cp "$in" "$out"
+        
+        sed -i "s/${{ inputs.rc_version }}/${{ inputs.final_version }}/g" "$out" || true
+        
+        echo "Updated receipt from ${{ inputs.rc_version }} to ${{ inputs.final_version }}"

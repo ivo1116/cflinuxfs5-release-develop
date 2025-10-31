@@ -1,0 +1,271 @@
+name: Test Rootfs
+
+on:
+  repository_dispatch:
+    types: [rootfs-build-completed]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to test'
+        default: '1.0.0-rc.1'
+        required: true
+      skip_cleanup:
+        description: 'Skip infrastructure cleanup'
+        type: boolean
+        default: false
+      skip_setup:
+        description: 'Skip setup test environment'
+        type: boolean
+        default: false
+      skip_deploy:
+        description: 'Skip Deploy CF'
+        type: boolean
+        default: false
+      skip_cats:
+        description: 'Skip Cloud Foundry Acceptance Tests'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+  actions: write
+  id-token: write
+
+defaults:
+  run:
+    shell: bash -euo pipefail {0}
+
+jobs:
+  resolve-inputs:
+    name: Resolve Inputs
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.set-vars.outputs.version }}
+      skip_cleanup: ${{ steps.set-vars.outputs.skip_cleanup }}
+      skip_setup: ${{ steps.set-vars.outputs.skip_setup }}
+      skip_deploy: ${{ steps.set-vars.outputs.skip_deploy }}
+      skip_cats: ${{ steps.set-vars.outputs.skip_cats }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Normalize inputs
+        id: set-vars
+        uses: ./.github/actions/normalize-test-inputs
+        with:
+          repository_dispatch_version: ${{ github.event.client_payload.version }}
+          workflow_dispatch_version: ${{ github.event.inputs.version }}
+          skip_cleanup: ${{ github.event.client_payload.skip_cleanup || github.event.inputs.skip_cleanup || 'true' }}
+          skip_setup: ${{ github.event.client_payload.skip_setup || github.event.inputs.skip_setup || 'true' }}
+          skip_deploy: ${{ github.event.client_payload.skip_deploy || github.event.inputs.skip_deploy || 'true' }}
+          skip_cats: ${{ github.event.client_payload.skip_cats || github.event.inputs.skip_cats || 'false' }}
+
+  setup-test-environment:
+    name: Setup Test Environment
+    needs: [resolve-inputs]
+    runs-on: ubuntu-latest
+    if: needs.resolve-inputs.outputs.skip_setup != 'true'
+    outputs:
+      environment_ready: ${{ steps.bbl-up.outputs.success }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Setup test environment
+        id: bbl-up
+        uses: ./.github/actions/bbl-up
+        with:
+          stack: ${{ vars.STACK }}
+          version: ${{ needs.resolve-inputs.outputs.version }}
+          env_name: ${{ vars.STACK }}
+          lb_domain: ${{ vars.SYSTEM_DOMAIN }}
+          gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+          gcp_zone: ${{ vars.GCP_ZONE }}
+          gcp_region: ${{ vars.GCP_REGION }}
+          bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
+          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          lb_cert: ${{ secrets.CFLINUXFS5_LB_CERT }}
+          lb_key: ${{ secrets.CFLINUXFS5_LB_KEY }}
+          bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
+          CFLINUXFS5_LB_KEY: ${{ secrets.CFLINUXFS5_LB_KEY }}
+
+      - name: Wait after BBL up
+        run: |
+          echo "Waiting ${{ vars.BBL_UP_DELAY_SECONDS }} seconds for environment to stabilize..."
+          sleep ${{ vars.BBL_UP_DELAY_SECONDS }}
+
+  deploy-cf:
+    name: Deploy CF with New Rootfs
+    needs: [setup-test-environment, resolve-inputs]
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.resolve-inputs.outputs.skip_deploy != 'true' && 
+      (needs.resolve-inputs.outputs.skip_setup == 'true' || needs.setup-test-environment.result == 'success')
+    outputs:
+      deployment_ready: ${{ steps.deploy.outputs.success }}
+      version: ${{ needs.resolve-inputs.outputs.version }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Deploy CF
+        id: deploy
+        uses: ./.github/actions/deploy-cf
+        with:
+          stack: ${{ vars.STACK }}
+          env_name: ${{ vars.STACK }}
+          version: ${{ needs.resolve-inputs.outputs.version }}
+          bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
+          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          system_domain: ${{ vars.SYSTEM_DOMAIN }}
+          bucket_name: ${{ vars.BUCKET_NAME }}
+          ops_file_repo: ${{ vars.OPS_FILE_REPO }}
+          ops_file: ${{ vars.OPS_FILE }}
+          bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+
+  run-cats:
+    name: Run Cloud Foundry Acceptance Tests
+    needs: [deploy-cf, resolve-inputs]
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    if: |
+      always() && 
+      needs.resolve-inputs.outputs.skip_cats != 'true' && (
+        needs.resolve-inputs.outputs.skip_deploy == 'true' || 
+        needs.deploy-cf.result == 'success'
+      )
+    outputs:
+      cats_passed: ${{ steps.cats.outputs.success }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Run CATs
+        id: cats
+        uses: ./.github/actions/run-cats
+        with:
+          bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
+          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          system_domain: ${{ vars.SYSTEM_DOMAIN }}
+          env_name: ${{ vars.STACK }}
+          nodes: 4
+          flake_attempts: 3
+          bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+
+  check-race-condition:
+    name: Check for Race Conditions
+    needs: [run-cats, resolve-inputs]
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      (needs.resolve-inputs.outputs.skip_cats == 'true' || needs.run-cats.outputs.cats_passed == 'true')
+    outputs:
+      race_check_passed: ${{ steps.race-check.outputs.success }}
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Check for race condition
+        id: race-check
+        uses: ./.github/actions/check-race-condition
+        with:
+          stack: ${{ vars.STACK }}
+          owner: ${{ github.repository_owner }}
+          current_version: ${{ needs.resolve-inputs.outputs.version }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  cleanup-deployments:
+    name: Cleanup CF Deployments
+    needs: [setup-test-environment, deploy-cf, run-cats, check-race-condition, resolve-inputs]
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.resolve-inputs.outputs.skip_cleanup != 'true'
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Cleanup deployments
+        uses: ./.github/actions/cleanup-deployments
+        with:
+          stack: ${{ vars.STACK }}
+          bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
+          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
+          CFLINUXFS5_LB_KEY: ${{ secrets.CFLINUXFS5_LB_KEY }}
+
+  destroy-test-environment:
+    name: Destroy Test Environment
+    needs: [setup-test-environment, cleanup-deployments, resolve-inputs]
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.resolve-inputs.outputs.skip_cleanup != 'true'
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Destroy test environment
+        uses: ./.github/actions/bbl-destroy
+        with:
+          env_name: ${{ vars.STACK }}
+          gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
+          bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
+          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          gcp_zone: ${{ vars.GCP_ZONE }}
+          gcp_region: ${{ vars.GCP_REGION }}
+          bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+        env:
+          GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+          CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
+          CFLINUXFS5_LB_KEY: ${{ secrets.CFLINUXFS5_LB_KEY }}
+
+  trigger-release-workflow:
+    name: Trigger Release Workflow
+    needs: [run-cats, check-race-condition, resolve-inputs]
+    runs-on: ubuntu-latest
+    if: |
+      always() && 
+      needs.check-race-condition.outputs.race_check_passed == 'true' &&
+      (needs.resolve-inputs.outputs.skip_cats == 'true' || needs.run-cats.outputs.cats_passed == 'true')
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Trigger Release Workflow
+        uses: ./.github/actions/trigger-release-workflow
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          version: ${{ needs.resolve-inputs.outputs.version }}
+
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [setup-test-environment, resolve-inputs, deploy-cf, run-cats, check-race-condition, cleanup-deployments, destroy-test-environment]
+    if: always()
+    steps:
+      - name: Checkout self
+        uses: actions/checkout@v4
+
+      - name: Generate test summary
+        uses: ./.github/actions/generate-test-summary
+        with:
+          skip_setup: ${{ needs.resolve-inputs.outputs.skip_setup }}
+          skip_cats: ${{ needs.resolve-inputs.outputs.skip_cats }}
+          skip_deploy: ${{ needs.resolve-inputs.outputs.skip_deploy }}
+          setup_result: ${{ needs.setup-test-environment.result }}
+          deployment_ready: ${{ needs.deploy-cf.outputs.deployment_ready }}
+          cats_passed: ${{ needs.run-cats.outputs.cats_passed }}
+          race_check_passed: ${{ needs.check-race-condition.outputs.race_check_passed }}
+          version: ${{ needs.resolve-inputs.outputs.version }}

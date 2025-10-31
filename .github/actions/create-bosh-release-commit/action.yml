@@ -1,0 +1,50 @@
+name: 'Commit BOSH Release Repo'
+description: 'Commit and push changes after creating a final BOSH release'
+
+inputs:
+  release_dir:
+    description: 'Path to the BOSH release repository'
+    required: true
+  git_user_name:
+    description: 'Git user.name for commit'
+    required: true
+  git_user_email:
+    description: 'Git user.email for commit'
+    required: true
+
+outputs:
+  commit_sha:
+    description: 'Commit SHA of the pushed release commit'
+    value: ${{ steps.commit.outputs.commit_sha }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Commit and push changes
+      id: commit
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        pushd "${{ inputs.release_dir }}"
+
+          git config user.name "${{ inputs.git_user_name }}"
+          git config user.email "${{ inputs.git_user_email }}"
+
+          git add config/blobs.yml
+          git add .final_builds/
+          git add releases/
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+            sha=$(git rev-parse HEAD)
+          else
+            git commit -m "Finalize BOSH release"
+            sha=$(git rev-parse HEAD)
+          fi
+
+          git push origin HEAD:${GITHUB_REF_NAME}
+
+          echo "commit_sha=$sha" >> "$GITHUB_OUTPUT"
+
+        popd

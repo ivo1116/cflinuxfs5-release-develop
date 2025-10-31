@@ -1,0 +1,211 @@
+name: 'Check Rootfs CVEs'
+description: 'Check for new CVEs in rootfs'
+
+inputs:
+  stack:
+    description: 'Stack name (e.g., {your-cflinuxfs-version})'
+    required: true
+  rootfs_repo:
+    description: 'Repo containing the stack source code'
+    required: true
+  cflinuxfs_deploy_key:
+    description: 'Deploy key for the repo'
+    required: true
+  ubuntu_version:
+    description: 'Ubuntu version description'
+    required: false
+    default: 'Ubuntu 24.04'
+  ubuntu_codename:
+    description: 'Ubuntu codename for CVE checking'
+    required: false
+    default: 'ubuntu24.04'
+  buildpacks_ci_repo:
+    description: 'Buildpacks CI repository (owner/repo)'
+    required: true
+  cves_repo_path:
+    description: 'Path to CVEs repository'
+    required: false
+    default: 'new-cves'
+  git_user_name:
+    description: 'Git user name for commits'
+    required: false
+    default: 'cflinuxfs-bot'
+  git_user_email:
+    description: 'Git user email for commits'
+    required: false
+    default: 'cflinuxfs-bot@test.com'
+
+outputs:
+  changes_detected:
+    description: 'Whether new CVEs were detected'
+    value: ${{ steps.check-changes.outputs.changes }}
+  cves_updated:
+    description: 'Whether CVE notifications were updated'
+    value: ${{ steps.push-changes.outputs.updated }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout cflinuxfs repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.rootfs_repo }}
+        ref: main
+        path: rootfs
+        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
+
+    - name: Checkout CVEs repository
+      uses: actions/checkout@v4
+      with:
+        repository: cloudfoundry/public-buildpacks-ci-robots
+        ref: main
+        path: new-cves
+
+    - name: Checkout buildpacks-ci
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.buildpacks_ci_repo }}
+        ref: master
+        path: buildpacks-ci
+
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.1'
+        bundler-cache: true
+        working-directory: buildpacks-ci
+
+    - name: Create output directory
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p output-new-cves
+        rsync -a ${{ inputs.cves_repo_path }}/ output-new-cves/
+
+    - name: Set up git identity in output-new-cves
+      shell: bash
+      run: |
+        set -euo pipefail
+        cd output-new-cves
+        git config user.name "${{ inputs.git_user_name }}"
+        git config user.email "${{ inputs.git_user_email }}"
+
+    - name: Test gem loading
+      shell: bash
+      run: |
+        cd buildpacks-ci
+        echo "=== Testing nokogiri ==="
+        bundle exec ruby -e "require 'nokogiri'; puts 'nokogiri loaded successfully'" || echo "Failed to load nokogiri"
+        echo "=== Testing octokit ==="
+        bundle exec ruby -e "require 'octokit'; puts 'octokit loaded successfully'" || echo "Failed to load octokit"
+
+    - name: Check for new CVEs
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        cd buildpacks-ci
+        export STACK='${{ inputs.stack }}'
+        export BUILDPACKS_CI_DIR="$(pwd)"
+        export STACKS_DIR="$(realpath ../rootfs)"
+        export CVES_DIR="$(realpath ../output-new-cves/new-cve-notifications)"
+
+        mkdir -p "$CVES_DIR"
+        
+        echo "Running CVE check with:"
+        echo "  STACK: $STACK"
+        echo "  BUILDPACKS_CI_DIR: $BUILDPACKS_CI_DIR" 
+        echo "  STACKS_DIR: $STACKS_DIR"
+        echo "  CVES_DIR: $CVES_DIR"
+        
+        if [[ ! -f "./lib/rootfs-cve-notifier.rb" ]]; then
+          echo "Error: rootfs-cve-notifier.rb not found in ./lib/"
+          find . -name "*cve*" -o -name "*rootfs*" | head -10
+          exit 1
+        fi
+        
+        cat > run_cve_check.rb << 'EOF'
+        #!/usr/bin/env ruby
+        
+        puts "Loading dependencies..."
+        require 'bundler/setup'
+        require 'nokogiri'
+        require 'octokit'
+        
+        puts "Loading CVE notifier..."
+        require_relative './lib/rootfs-cve-notifier'
+        
+        cves_dir = ENV['CVES_DIR']
+        stacks_dir = ENV['STACKS_DIR']
+        stack = ENV['STACK']
+        ubuntu_version = ENV['UBUNTU_VERSION'] || 'Ubuntu 24.04'
+        ubuntu_codename = ENV['UBUNTU_CODENAME'] || 'ubuntu24.04'
+        
+        puts "Initializing CVE notifier with:"
+        puts "  CVEs dir: #{cves_dir}"
+        puts "  Stacks dir: #{stacks_dir}"
+        puts "  Stack: #{stack}"
+        
+        cve_notifier = RootFSCVENotifier.new(cves_dir, stacks_dir)
+        puts "Running CVE check..."
+        cve_notifier.run!(stack, ubuntu_version, ubuntu_codename, [])
+        puts "CVE check completed successfully."
+        EOF
+        
+        export UBUNTU_VERSION="${{ inputs.ubuntu_version }}"
+        export UBUNTU_CODENAME="${{ inputs.ubuntu_codename }}"
+        
+        bundle exec ruby run_cve_check.rb
+
+    - name: Check for changes
+      id: check-changes
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        cd output-new-cves
+        git config user.name "${{ inputs.git_user_name }}"
+        git config user.email "${{ inputs.git_user_email }}"
+        
+        echo "=== Checking git status ==="
+        git status --porcelain || echo "No git repository"
+        
+        if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+          echo "changes=true" >> $GITHUB_OUTPUT
+          echo "New CVEs detected for ${{ inputs.stack }}"
+          echo "Changed files:"
+          git status --porcelain
+        else
+          echo "changes=false" >> $GITHUB_OUTPUT
+          echo "No new CVEs found for ${{ inputs.stack }}"
+        fi
+
+    - name: Commit and push changes
+      id: push-changes
+      if: steps.check-changes.outputs.changes == 'true'
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        cd output-new-cves
+        git add -A
+        git commit -m "Update CVE notifications for ${{ inputs.stack }}
+
+        Automated update from rootfs CVE check
+        [ci skip]"
+        
+        if git push origin HEAD; then
+          echo "updated=true" >> $GITHUB_OUTPUT
+          echo "CVE notifications updated and pushed"
+        else
+          echo "updated=false" >> $GITHUB_OUTPUT
+          echo "Failed to push CVE updates"
+          exit 1
+        fi
+
+    - name: No changes found
+      if: steps.check-changes.outputs.changes == 'false'
+      shell: bash
+      run: |
+        echo "updated=false" >> $GITHUB_OUTPUT
+        echo "No CVE updates needed for ${{ inputs.stack }}"

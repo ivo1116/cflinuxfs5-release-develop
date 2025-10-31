@@ -1,0 +1,110 @@
+name: 'Generate Receipt Diff'
+description: 'Generate receipt diff between current and previous versions'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Version number'
+    required: true
+  previous_version:
+    description: 'Previous version'
+    required: false
+    default: ''
+  bucket_name:
+    description: 'Name of the S3 bucket'
+    required: true
+
+outputs:
+  diff_path:
+    description: 'Path to generated diff'
+    value: ${{ steps.diff.outputs.diff_path }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Create output directory
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p public-robots-artifacts
+        mkdir -p receipt-artifacts 
+
+    - name: Download previous receipt
+      if: inputs.previous_version != ''
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.previous_version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: receipt
+      continue-on-error: true
+
+    - name: Prepare previous receipt file
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        STACK="${{ inputs.stack }}"
+        PREV_VERSION="${{ inputs.previous_version }}"
+        PREVIOUS_RECEIPT_FILE="receipt-artifacts/receipt.${STACK}.x86_64-${PREV_VERSION}"
+        PREVIOUS_RECEIPT="receipt.${STACK}.x86_64.previous"
+        
+        if [[ -n "$PREV_VERSION" && -f "$PREVIOUS_RECEIPT_FILE" ]]; then
+          echo "Found previous receipt for version: $PREV_VERSION"
+          cp "$PREVIOUS_RECEIPT_FILE" "$PREVIOUS_RECEIPT"
+        else
+          echo "No previous receipt available (version: '$PREV_VERSION', file exists: $([[ -f "$PREVIOUS_RECEIPT_FILE" ]] && echo 'yes' || echo 'no')) - creating empty file"
+          touch "$PREVIOUS_RECEIPT"
+        fi
+
+    - name: Generate diff
+      id: diff
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        STACK="${{ inputs.stack }}"
+        VERSION="${{ inputs.version }}"
+        
+        CURRENT_RECEIPT="receipt-artifacts/receipt.${STACK}.x86_64-${VERSION}"
+        PREVIOUS_RECEIPT="receipt.${STACK}.x86_64.previous"
+        
+        if [[ ! -f "$CURRENT_RECEIPT" ]]; then
+          echo "ERROR: Current receipt not found: $CURRENT_RECEIPT"
+          exit 1
+        fi
+        
+        echo "=== Generating Receipt Diff ==="
+        echo "Previous: $PREVIOUS_RECEIPT"
+        echo "Current: $CURRENT_RECEIPT"
+        
+        DIFF_FILE="public-robots-artifacts/receipt-diff-${VERSION}.txt"
+        SUMMARY_FILE="public-robots-artifacts/receipt-summary-${VERSION}.txt"
+        
+        if command -v git >/dev/null 2>&1; then
+          git --no-pager diff --no-index "$PREVIOUS_RECEIPT" "$CURRENT_RECEIPT" > "$DIFF_FILE" || true
+        else
+          diff -u "$PREVIOUS_RECEIPT" "$CURRENT_RECEIPT" > "$DIFF_FILE" || true
+        fi
+        
+        {
+          echo "Receipt Diff Summary"
+          echo "==================="
+          echo "Previous Version: ${{ inputs.previous_version }}"
+          echo "Current Version: $VERSION"
+          echo "Generated: $(date -u)"
+          echo ""
+          echo "Diff Lines: $(wc -l < "$DIFF_FILE" 2>/dev/null || echo '0')"
+          echo ""
+          if [[ -s "$DIFF_FILE" ]]; then
+            echo "Diff:"
+            cat "$DIFF_FILE"
+          else
+            echo "No changes detected (or no previous version available)."
+          fi
+        } > "$SUMMARY_FILE"
+        
+        echo "Diff generated successfully (empty previous treated as no prior version)"
+        echo "diff_path=public-robots-artifacts" >> $GITHUB_OUTPUT

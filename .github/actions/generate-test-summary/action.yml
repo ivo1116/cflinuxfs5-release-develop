@@ -1,0 +1,83 @@
+name: 'Generate Test Summary'
+description: 'Generate test summary for GitHub Actions summary'
+
+inputs:
+  skip_setup:
+    description: 'Skip setup flag'
+    required: false
+  skip_cats:
+    description: 'Skip CATs flag'
+    required: false
+  skip_deploy:
+    description: 'Skip Deploy CF flag'
+    required: false
+  setup_result:
+    description: 'Setup result'
+    required: false
+  deployment_ready:
+    description: 'Deployment ready flag'
+    required: false
+  cats_passed:
+    description: 'CATs passed flag'
+    required: false
+  race_check_passed:
+    description: 'Race check passed flag'
+    required: false
+  version:
+    description: 'Version tested'
+    required: false
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate test summary
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        {
+          echo "## Test Summary"
+          echo ""
+          
+          if [[ "${{ inputs.skip_setup }}" == "true" ]]; then
+            echo "**Environment Setup**: Skipped"
+          elif [[ "${{ inputs.setup_result }}" == "success" ]]; then
+            echo "**Environment Setup**: Success"
+          else
+            echo "**Environment Setup**: Failed"
+          fi
+          
+          if [[ "${{ inputs.skip_deploy }}" == "true" ]]; then
+            echo "**CF Deployment**: Skipped"
+          elif [[ "${{ inputs.deployment_ready }}" == "true" ]]; then
+            echo "**CF Deployment**: Success"
+          else
+            echo "**CF Deployment**: Failed"
+          fi
+          
+          if [[ "${{ inputs.skip_cats }}" == "true" ]]; then
+            echo "**CATs**: Skipped"
+          elif [[ "${{ inputs.cats_passed }}" == "true" ]]; then
+            echo "**CATs**: Passed"
+          else
+            echo "**CATs**: Failed"
+          fi
+          
+          if [[ "${{ inputs.race_check_passed }}" == "true" ]]; then
+            echo "**Race Condition Check**: Passed"
+          else
+            echo "**Race Condition Check**: Failed"
+          fi
+          
+          echo ""
+          echo "**Version Tested**: ${{ inputs.version || 'N/A' }}"
+          
+          # Determine overall result
+          if [[ ("${{ inputs.deployment_ready }}" == "true" || "${{ inputs.skip_deploy }}" == "true") && \
+                ( "${{ inputs.skip_cats }}" == "true" || "${{ inputs.cats_passed }}" == "true" ) && \
+                "${{ inputs.race_check_passed }}" == "true" ]]; then
+            echo "**Overall Result**: All tests passed - ready for release"
+          else
+            echo "**Overall Result**: Tests failed - release blocked"
+          fi
+        } >> "$GITHUB_STEP_SUMMARY"

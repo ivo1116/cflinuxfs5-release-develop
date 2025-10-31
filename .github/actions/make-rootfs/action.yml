@@ -1,0 +1,120 @@
+name: 'Make Rootfs'
+description: 'Build rootfs tarball'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  version:
+    description: 'Version number'
+    required: true
+  privileged:
+    description: 'Run with privileged access'
+    required: false
+    default: 'false'
+
+outputs:
+  artifacts_path:
+    description: 'Path to generated artifacts'
+    value: ${{ steps.build.outputs.artifacts_path }}
+  success:
+    description: 'Build success status'
+    value: ${{ steps.build.outputs.success }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Start Docker daemon
+      shell: bash
+      run: |
+        set -euo pipefail
+        sudo systemctl start docker
+        sudo usermod -aG docker $USER
+
+    - name: Create version file
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p version
+        echo "${{ inputs.version }}" > version/number
+
+    - name: Create output directories
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p rootfs-artifacts
+        mkdir -p receipt-artifacts
+
+    - name: Patch apt sources to HTTPS
+      shell: bash
+      run: |
+        sudo sed -i 's|http://archive.ubuntu.com/ubuntu/|https://archive.ubuntu.com/ubuntu/|g' /etc/apt/sources.list || true
+        sudo sed -i 's|http://security.ubuntu.com/ubuntu/|https://security.ubuntu.com/ubuntu/|g' /etc/apt/sources.list || true
+
+    - name: Build rootfs
+      id: build
+      shell: bash
+      run: |
+        set -euo pipefail
+        set -x
+
+        cd ${{ inputs.stack }}
+
+        STACK="${{ inputs.stack }}"
+        old_receipt_copy="receipt.${STACK}.x86_64.copy"
+
+        if [[ -f "receipt.${STACK}.x86_64" ]]; then
+          mv "receipt.${STACK}.x86_64" "$old_receipt_copy"
+        else
+          touch "$old_receipt_copy"
+        fi
+
+        make --always-make NAME="$STACK" \
+          PACKAGE_ARGS="--fix-missing"
+
+        VERSION="${{ inputs.version }}"
+        versioned_stack_filename="../rootfs-artifacts/${STACK}-${VERSION}.tar.gz"
+        mv "${STACK}.x86_64.tar.gz" "$versioned_stack_filename"
+
+        versioned_receipt_filename="../receipt-artifacts/receipt.${STACK}.x86_64-${VERSION}"
+        mv "receipt.${STACK}.x86_64" "$versioned_receipt_filename"
+
+        if command -v git >/dev/null 2>&1; then
+          echo "=== Receipt Changes ==="
+          TERM=xterm-color git --no-pager diff --no-index "$old_receipt_copy" "$versioned_receipt_filename" || true
+        else
+          echo "=== Receipt Changes (using diff) ==="
+          diff "$old_receipt_copy" "$versioned_receipt_filename" || true
+        fi
+
+        rm -f "$old_receipt_copy"
+
+        echo "artifacts_path=." >> $GITHUB_OUTPUT
+        echo "success=true" >> $GITHUB_OUTPUT
+
+    - name: Verify artifacts were created
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        echo "=== Checking created artifacts ==="
+        ls -la rootfs-artifacts/
+        ls -la receipt-artifacts/
+
+        STACK="${{ inputs.stack }}"
+        VERSION="${{ inputs.version }}"
+
+        if [[ ! -f "rootfs-artifacts/${STACK}-${VERSION}.tar.gz" ]]; then
+          echo "ERROR: Stack tarball not found!"
+          exit 1
+        fi
+
+        if [[ ! -f "receipt-artifacts/receipt.${STACK}.x86_64-${VERSION}" ]]; then
+          echo "ERROR: Receipt file not found!"
+          exit 1
+        fi
+
+        echo "All artifacts created successfully"

@@ -1,0 +1,37 @@
+name: 'Docker Import and Push'
+description: 'Import a tarball as an image and push version and latest tags'
+
+inputs:
+  image:
+    description: 'Full image name (e.g. cloudfoundry/{your-cflinuxfs-version})'
+    required: true
+  version:
+    description: 'Version tag to push'
+    required: true
+  tar_path:
+    description: 'Path to rootfs tarball for docker import'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Import and push Docker images
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        echo "Importing Docker image from tarball..."
+        docker import "${{ inputs.tar_path }}" \
+          "${{ inputs.image }}:${{ inputs.version }}"
+        
+        echo "Tagging as latest..."
+        docker tag "${{ inputs.image }}:${{ inputs.version }}" \
+          "${{ inputs.image }}:latest"
+        
+        echo "Pushing version tag..."
+        docker push "${{ inputs.image }}:${{ inputs.version }}"
+        
+        echo "Pushing latest tag..."
+        docker push "${{ inputs.image }}:latest"
+        
+        echo "Docker push completed successfully"

@@ -1,0 +1,41 @@
+name: 'Get Previous Release Tag'
+description: 'Get the tag of the most recent release'
+
+inputs:
+  github_token:
+    description: 'GitHub token'
+    required: true
+  owner:
+    description: 'Repository owner'
+    required: true
+  repo:
+    description: 'Repository name'
+    required: true
+
+outputs:
+  tag:
+    description: 'Previous release tag'
+    value: ${{ steps.get-tag.outputs.tag }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Get previous release tag
+      id: get-tag
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.github_token }}
+        script: |
+          try {
+            const { data: releases } = await github.rest.repos.listReleases({
+              owner: '${{ inputs.owner }}',
+              repo: '${{ inputs.repo }}',
+              per_page: 1
+            });
+            const previousTag = releases.length > 0 ? releases[0].tag_name : '';
+            core.setOutput('tag', previousTag);
+            console.log(`Previous release tag: ${previousTag || 'none'}`);
+          } catch (error) {
+            console.log('No previous releases found or error occurred:', error.message);
+            core.setOutput('tag', '');
+          }

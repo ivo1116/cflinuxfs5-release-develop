@@ -1,0 +1,107 @@
+name: 'Release Rootfs Repository'
+description: 'Download RC artifacts, finalize them, and tag the rootfs repository'
+
+inputs:
+  rootfs_repo:
+    description: 'Rootfs repository (owner/repo)'
+    required: true
+  stack:
+    description: 'Stack name'
+    required: true
+  rc_version:
+    description: 'RC version to finalize'
+    required: true
+  final_version:
+    description: 'Final version'
+    required: true
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  default_branch:
+    description: 'Default branch name'
+    required: true
+  cflinuxfs_deploy_key:
+    description: 'SSH deploy key for rootfs repo'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Checkout self
+      uses: actions/checkout@v4
+
+    - name: Checkout rootfs repo
+      uses: actions/checkout@v4
+      with:
+        repository: ${{ inputs.rootfs_repo }}
+        ref: ${{ inputs.default_branch }}
+        path: rootfs
+        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
+        persist-credentials: true
+
+    - name: Download RC stack from S3
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.rc_version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: stack
+
+    - name: Download RC receipt from S3
+      uses: ./.github/actions/download-s3
+      with:
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.rc_version }}
+        bucket_name: ${{ inputs.bucket_name }}
+        artifact_type: receipt
+
+    - name: Update receipt to final
+      uses: ./.github/actions/update-rootfs-receipt
+      with:
+        stack: ${{ inputs.stack }}
+        rc_version: ${{ inputs.rc_version }}
+        final_version: ${{ inputs.final_version }}
+
+    - name: Update archive filename to final
+      uses: ./.github/actions/update-rootfs-filename
+      with:
+        stack: ${{ inputs.stack }}
+        rc_version: ${{ inputs.rc_version }}
+        final_version: ${{ inputs.final_version }}
+
+    - name: Sync final artifacts to expected upload paths
+      shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p rootfs-artifacts receipt-artifacts
+        
+        cp "rootfs-archive/${{ inputs.stack }}-${{ inputs.final_version }}.tar.gz" \
+           "rootfs-artifacts/${{ inputs.stack }}-${{ inputs.final_version }}.tar.gz"
+        cp "receipt-archive/receipt.${{ inputs.stack }}.x86_64-${{ inputs.final_version }}" \
+           "receipt-artifacts/receipt.${{ inputs.stack }}.x86_64-${{ inputs.final_version }}"
+
+    - name: Commit and tag in rootfs repo
+      uses: ./.github/actions/commit-and-tag-rootfs
+      with:
+        repo_dir: rootfs
+        receipt_path: receipt-archive/receipt.${{ inputs.stack }}.x86_64-${{ inputs.final_version }}
+        tag: ${{ inputs.final_version }}
+        stack: ${{ inputs.stack }}
+        git_user_name: ${{ inputs.stack }}-bot
+        git_user_email: ${{ inputs.stack }}-bot@test.com
+
+    - name: Upload final stack to S3
+      uses: ./.github/actions/upload-s3
+      with:
+        upload_type: stack
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.final_version }}
+        bucket_name: ${{ inputs.bucket_name }}
+
+    - name: Upload final receipt to S3
+      uses: ./.github/actions/upload-s3
+      with:
+        upload_type: receipt
+        stack: ${{ inputs.stack }}
+        version: ${{ inputs.final_version }}
+        bucket_name: ${{ inputs.bucket_name }}

@@ -1,0 +1,49 @@
+name: 'Generate Release Notes'
+description: 'Generate release notes file release-body/body'
+
+inputs:
+  stack:
+    description: 'Stack name'
+    required: true
+  current_version:
+    description: 'Current final version being released'
+    required: true
+  previous_version:
+    description: 'Previous release tag to reference (optional)'
+    required: false
+    default: ''
+  type:
+    description: 'Type to generate notes for: stack (rootfs/source) or release (final tgz artifact)'
+    required: true 
+    default: 'release'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Generate release notes
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        mkdir -p release-body
+        {
+          echo "# ${{ inputs.stack }} ${{ inputs.current_version }}"
+          if [[ -n "${{ inputs.previous_version }}" ]]; then
+            echo
+            echo "Diff from: ${{ inputs.previous_version }}"
+          fi
+          echo
+          echo "Changes:"
+          case "${{ inputs.type }}" in
+            "stack")
+              echo "- Updated rootfs packages and dependencies"
+              echo "- See commit history for detailed changes"
+              ;;
+            "release")
+              echo "- Rootfs finalized from RC"
+              echo "- See receipt for package updates"
+              ;;
+          esac
+        } > release-body/body
+        
+        echo "Release notes generated for ${{ inputs.stack }} (type: ${{ inputs.type }}) ${{ inputs.current_version }}"

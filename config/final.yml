@@ -1,0 +1,8 @@
+---
+name: cflinuxfs5
+blobstore:
+  provider: s3
+  options:
+    bucket_name: cflinuxfs5test
+    region: us-east-1
+    prefix: bosh-blobs

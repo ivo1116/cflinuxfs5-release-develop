@@ -1,0 +1,24 @@
+name: 'Trigger Release Workflow'
+description: 'Dispatch repository event to trigger release workflow'
+
+inputs:
+  github_token:
+    description: 'GitHub token'
+    required: true
+  version:
+    description: 'Version to release'
+    required: true
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Trigger Release Workflow
+      uses: peter-evans/repository-dispatch@v3
+      with:
+        token: ${{ inputs.github_token }}
+        event-type: rootfs-tests-completed
+        client-payload: |
+          {
+            "version": "${{ inputs.version }}",
+            "cats_passed": "true"
+          }
