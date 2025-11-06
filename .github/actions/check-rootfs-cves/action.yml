@@ -22,18 +22,14 @@ inputs:
   buildpacks_ci_repo:
     description: 'Buildpacks CI repository (owner/repo)'
     required: true
-  cves_repo_path:
-    description: 'Path to CVEs repository'
-    required: false
-    default: 'new-cves'
   git_user_name:
     description: 'Git user name for commits'
     required: false
-    default: 'cflinuxfs-bot'
+    default: 'app-runtime-interfaces@cloudfoundry.org'
   git_user_email:
     description: 'Git user email for commits'
     required: false
-    default: 'cflinuxfs-bot@test.com'
+    default: 'app-runtime-interfaces@cloudfoundry.org'
 
 outputs:
   changes_detected:
@@ -60,6 +56,7 @@ runs:
         repository: cloudfoundry/public-buildpacks-ci-robots
         ref: main
         path: new-cves
+        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
 
     - name: Checkout buildpacks-ci
       uses: actions/checkout@v4
@@ -75,18 +72,11 @@ runs:
         bundler-cache: true
         working-directory: buildpacks-ci
 
-    - name: Create output directory
+    - name: Set up git identity
       shell: bash
       run: |
         set -euo pipefail
-        mkdir -p output-new-cves
-        rsync -a ${{ inputs.cves_repo_path }}/ output-new-cves/
-
-    - name: Set up git identity in output-new-cves
-      shell: bash
-      run: |
-        set -euo pipefail
-        cd output-new-cves
+        cd new-cves
         git config user.name "${{ inputs.git_user_name }}"
         git config user.email "${{ inputs.git_user_email }}"
 
@@ -108,7 +98,9 @@ runs:
         export STACK='${{ inputs.stack }}'
         export BUILDPACKS_CI_DIR="$(pwd)"
         export STACKS_DIR="$(realpath ../rootfs)"
-        export CVES_DIR="$(realpath ../output-new-cves/new-cve-notifications)"
+        export CVES_DIR="$(realpath ../new-cves/new-cve-notifications)"
+        export UBUNTU_VERSION='${{ inputs.ubuntu_version }}'
+        export UBUNTU_CODENAME='${{ inputs.ubuntu_codename }}'
 
         mkdir -p "$CVES_DIR"
         
@@ -138,8 +130,8 @@ runs:
         cves_dir = ENV['CVES_DIR']
         stacks_dir = ENV['STACKS_DIR']
         stack = ENV['STACK']
-        ubuntu_version = ENV['UBUNTU_VERSION'] || 'Ubuntu 24.04'
-        ubuntu_codename = ENV['UBUNTU_CODENAME'] || 'ubuntu24.04'
+        ubuntu_version = ENV['UBUNTU_VERSION']
+        ubuntu_codename = ENV['UBUNTU_CODENAME']
         
         puts "Initializing CVE notifier with:"
         puts "  CVEs dir: #{cves_dir}"
@@ -152,9 +144,6 @@ runs:
         puts "CVE check completed successfully."
         EOF
         
-        export UBUNTU_VERSION="${{ inputs.ubuntu_version }}"
-        export UBUNTU_CODENAME="${{ inputs.ubuntu_codename }}"
-        
         bundle exec ruby run_cve_check.rb
 
     - name: Check for changes
@@ -163,14 +152,12 @@ runs:
       run: |
         set -euo pipefail
         
-        cd output-new-cves
-        git config user.name "${{ inputs.git_user_name }}"
-        git config user.email "${{ inputs.git_user_email }}"
+        cd new-cves
         
         echo "=== Checking git status ==="
-        git status --porcelain || echo "No git repository"
+        git status --porcelain
         
-        if [[ -n "$(git status --porcelain 2>/dev/null)" ]]; then
+        if [[ -n "$(git status --porcelain)" ]]; then
           echo "changes=true" >> $GITHUB_OUTPUT
           echo "New CVEs detected for ${{ inputs.stack }}"
           echo "Changed files:"
@@ -187,7 +174,7 @@ runs:
       run: |
         set -euo pipefail
         
-        cd output-new-cves
+        cd new-cves
         git add -A
         git commit -m "Update CVE notifications for ${{ inputs.stack }}
 
