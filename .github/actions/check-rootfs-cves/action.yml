@@ -154,14 +154,16 @@ runs:
         
         cd new-cves
         
-        echo "=== Checking git status ==="
-        git status --porcelain
+        echo "=== Checking for new commits ==="
         
-        if [[ -n "$(git status --porcelain)" ]]; then
+        COMMITS_AHEAD=$(git rev-list --count origin/main..HEAD)
+        
+        echo "Commits ahead of origin/main: $COMMITS_AHEAD"
+        git log --oneline origin/main..HEAD || true
+        
+        if [[ $COMMITS_AHEAD -gt 0 ]]; then
           echo "changes=true" >> $GITHUB_OUTPUT
           echo "New CVEs detected for ${{ inputs.stack }}"
-          echo "Changed files:"
-          git status --porcelain
         else
           echo "changes=false" >> $GITHUB_OUTPUT
           echo "No new CVEs found for ${{ inputs.stack }}"
@@ -175,12 +177,8 @@ runs:
         set -euo pipefail
         
         cd new-cves
-        git add -A
-        git commit -m "Update CVE notifications for ${{ inputs.stack }}
-
-        Automated update from rootfs CVE check
-        [ci skip]"
         
+        echo "Pushing CVE updates..."
         if git push origin HEAD; then
           echo "updated=true" >> $GITHUB_OUTPUT
           echo "CVE notifications updated and pushed"
