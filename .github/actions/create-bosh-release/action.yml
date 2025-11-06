@@ -64,6 +64,7 @@ runs:
         repository: ${{ inputs.release_repo }}
         ref: main
         path: ${{ inputs.release_dir }}
+        submodules: recursive
         ssh-key: ${{ inputs.release_deploy_key }}
 
     - name: Checkout bosh-package-golang-release
