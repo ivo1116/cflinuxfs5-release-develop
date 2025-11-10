@@ -59,7 +59,7 @@ runs:
       run: |
         set -euo pipefail
         
-        wget -O /tmp/bbl https://github.com/Ivo1116/bosh-bootloader/releases/download/test/bbl-linux
+        wget -O /tmp/bbl https://github.com/cloudfoundry/bosh-bootloader/releases/download/v9.0.39/bbl-v9.0.39_linux_amd64
         chmod +x /tmp/bbl
         sudo mv /tmp/bbl /usr/local/bin/bbl
 
@@ -119,16 +119,10 @@ runs:
         git config user.name "CF Buildpacks Eng Bot"
         git config user.email "tanzu-buildpacks.pdl@broadcom.com"
         
-        echo "*/gcp-key.json" >> .gitignore
-        echo "*/service-account-key.json" >> .gitignore
-        echo "*/*-key.json" >> .gitignore
-        echo "*/*.key" >> .gitignore
-        echo "*/*.pem" >> .gitignore
-        echo "*/private_key" >> .gitignore
-        echo "*/id_rsa*" >> .gitignore
+        git add -A
+        git reset -- */gcp-key.json */service-account-key.json */*-key.json */*.key */*.pem */private_key */id_rsa*
         
         if [[ -n "$(git status --porcelain)" ]]; then
-          git add -A
           git commit -m "Update BBL state for ${{ inputs.env_name }}"
           git push origin ${{ inputs.bbl_state_branch }}
         else

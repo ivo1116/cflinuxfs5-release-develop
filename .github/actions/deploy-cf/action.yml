@@ -23,7 +23,7 @@ inputs:
     required: true
   ops_file_repo:
     description: 'Git repo conataining the ops file'
-    required: true
+    required: false
   ops_file:
     description: 'use cflinuxfs ops file'
     default: "ops-file/use-{your-cflinuxfs-version}.yml"
@@ -60,13 +60,6 @@ runs:
         repository: cloudfoundry/cf-deployment
         ref: main
         path: cf-deployment
-
-    - name: Checkout test ops file repo
-      uses: actions/checkout@v4
-      with:
-        repository: ${{ inputs.ops_file_repo }}
-        ref: main
-        path: ops-file
 
     - name: Setup tools (bosh, bbl)
       shell: bash
@@ -114,7 +107,7 @@ runs:
         set -euo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
         DOMAIN="${{ inputs.system_domain }}"
-        OPS_FILE="ops-file/${{ inputs.ops_file }}"
+        OPS_FILE=".github/ops/${{ inputs.ops_file }}"
         eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
         
         deploy_cf() {

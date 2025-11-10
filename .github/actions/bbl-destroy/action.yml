@@ -101,21 +101,15 @@ runs:
         set -euo pipefail
         cd bbl-state
         
-        git config user.name "CF Buildpacks Eng Bot"
-        git config user.email "tanzu-buildpacks.pdl@broadcom.com"
-        
-        echo "*/gcp-key.json" >> .gitignore
-        echo "*/service-account-key.json" >> .gitignore
-        echo "*/*-key.json" >> .gitignore
-        echo "*/*.key" >> .gitignore
-        echo "*/*.pem" >> .gitignore
-        echo "*/private_key" >> .gitignore
-        echo "*/id_rsa*" >> .gitignore
+        git config user.name "app-runtime-interfaces@cloudfoundry.org"
+        git config user.email "app-runtime-interfaces@cloudfoundry.org"
 
         rm -rf "${{ inputs.env_name }}"
         
+        git add -A
+        git reset -- */gcp-key.json */service-account-key.json */*-key.json */*.key */*.pem */private_key */id_rsa*
+        
         if [[ -n "$(git status --porcelain)" ]]; then
-          git add -A
           git commit -m "Clean up BBL state for ${{ inputs.env_name }} after destroy"
           git push origin ${{ inputs.bbl_state_branch }}
           echo "BBL state changes committed and pushed"
