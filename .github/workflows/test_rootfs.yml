@@ -123,7 +123,6 @@ jobs:
           bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
           system_domain: ${{ vars.SYSTEM_DOMAIN }}
           bucket_name: ${{ vars.BUCKET_NAME }}
-          ops_file_repo: ${{ vars.OPS_FILE_REPO }}
           ops_file: ${{ vars.OPS_FILE }}
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
         env:
