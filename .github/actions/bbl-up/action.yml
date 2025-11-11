@@ -33,7 +33,7 @@ inputs:
   bbl_state_branch:
     description: 'Branch for BBL state'
     required: false
-    default: 'main'
+    default: 'master'
   bbl_state_deploy_key:
     description: 'Deploy key for BBL state'
     required: true

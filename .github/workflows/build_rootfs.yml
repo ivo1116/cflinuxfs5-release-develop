@@ -69,9 +69,9 @@ jobs:
                 region: ${{ vars.AWS_REGION }}
                 credentials_source: env_or_profile
           cflinuxfs_release_repo: ${{ vars.RELEASE_REPO }}
-          cflinuxfs_release_ref: ${{ vars.DEFAULT_BRANCH }}
+          cflinuxfs_release_ref: main
           golang_release_repo: ${{ vars.GOLANG_RELEASE_REPO }}
-          golang_release_ref: ${{ vars.DEFAULT_BRANCH }}
+          golang_release_ref: main
           release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
 
   determine-build-needed:

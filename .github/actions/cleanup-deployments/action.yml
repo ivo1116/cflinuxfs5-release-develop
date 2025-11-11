@@ -11,7 +11,7 @@ inputs:
   bbl_state_branch:
     description: 'Branch of the bbl state repo'
     required: true
-    default: main
+    default: master
   bbl_state_deploy_key:
     description: 'SSH deploy key for BBL state repo'
     required: true
