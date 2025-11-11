@@ -101,7 +101,7 @@ jobs:
           rc_version: ${{ needs.resolve-inputs.outputs.rc_version }}
           final_version: ${{ needs.resolve-inputs.outputs.final_version }}
           bucket_name: ${{ vars.BUCKET_NAME }}
-          default_branch: ${{ vars.DEFAULT_BRANCH }}
+          default_branch: main
           cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
 
   reset-version-to-rc:
@@ -183,7 +183,7 @@ jobs:
           version: ${{ needs.release-rootfs-repo.outputs.final_version }}
           release_repo: ${{ vars.STACK }}-release
           bucket_name: ${{ vars.BUCKET_NAME }}
-          default_branch: ${{ vars.DEFAULT_BRANCH }}
+          default_branch: main
           git_user_name: ${{ vars.STACK }}-bot
           git_user_email: ${{ vars.STACK }}-bot@test.com
           github_token: ${{ secrets.GITHUB_TOKEN }}

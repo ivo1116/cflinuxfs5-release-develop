@@ -41,9 +41,9 @@ runs:
         git config user.name "${{ inputs.git_user_name }}"
         git config user.email "${{ inputs.git_user_email }}"
 
-        git fetch origin "${DEFAULT_BRANCH:-main}"
-        git checkout "${DEFAULT_BRANCH:-main}"
-        git pull --ff-only origin "${DEFAULT_BRANCH:-main}"
+        git fetch origin main
+        git checkout main
+        git pull --ff-only origin main
 
         git add "receipt.${STACK}.x86_64"
         if git diff --staged --quiet; then
@@ -59,7 +59,7 @@ runs:
           git tag "${{ inputs.tag }}"
         fi
 
-        git push origin "${DEFAULT_BRANCH:-main}"
+        git push origin main
         git push origin "refs/tags/${{ inputs.tag }}"
         
         echo "Committed and tagged release ${{ inputs.tag }}"

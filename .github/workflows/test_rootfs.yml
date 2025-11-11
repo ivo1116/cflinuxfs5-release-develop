@@ -118,7 +118,7 @@ jobs:
           env_name: ${{ vars.STACK }}
           version: ${{ needs.resolve-inputs.outputs.version }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
-          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          bbl_state_branch: master
           system_domain: ${{ vars.SYSTEM_DOMAIN }}
           bucket_name: ${{ vars.BUCKET_NAME }}
           ops_file: ${{ vars.OPS_FILE }}
@@ -150,7 +150,7 @@ jobs:
         uses: ./.github/actions/run-cats
         with:
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
-          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          bbl_state_branch: master
           system_domain: ${{ vars.SYSTEM_DOMAIN }}
           env_name: ${{ vars.STACK }}
           nodes: 4
@@ -195,7 +195,7 @@ jobs:
         with:
           stack: ${{ vars.STACK }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
-          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          bbl_state_branch: master
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
@@ -219,7 +219,7 @@ jobs:
           env_name: ${{ vars.STACK }}
           gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
-          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
+          bbl_state_branch: master
           gcp_zone: ${{ vars.GCP_ZONE }}
           gcp_region: ${{ vars.GCP_REGION }}
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
