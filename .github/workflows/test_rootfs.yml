@@ -83,9 +83,7 @@ jobs:
           gcp_zone: ${{ vars.GCP_ZONE }}
           gcp_region: ${{ vars.GCP_REGION }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
-          bbl_state_branch: ${{ vars.DEFAULT_BRANCH }}
-          lb_cert: ${{ secrets.CFLINUXFS5_LB_CERT }}
-          lb_key: ${{ secrets.CFLINUXFS5_LB_KEY }}
+          bbl_state_branch: master
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
