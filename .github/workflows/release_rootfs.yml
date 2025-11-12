@@ -188,7 +188,7 @@ jobs:
           git_user_email: ${{ vars.STACK }}-bot@test.com
           github_token: ${{ secrets.GITHUB_TOKEN }}
           go_version: ${{ vars.GOLANG_VERSION }}
-          aws_region: ${{ vars.AWS_REGION }}
+          aws_region: ${{ secrets.AWS_REGION }}
           owner: ${{ vars.REPO_OWNER }}
           release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
 
