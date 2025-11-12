@@ -116,3 +116,14 @@ runs:
         else
           echo "No BBL state changes to commit"
         fi
+
+    - name: Manage GCP DNS (Remove)
+      uses: ./.github/actions/manage-gcp-dns
+      with:
+        action: remove
+        bbl_state_dir: bbl-state/${{ inputs.env_name }}
+        gcp_dns_service_account_key: ${{ env.GCP_SERVICE_ACCOUNT_KEY }}
+        gcp_dns_zone_name: ${{ env.GCP_DNS_ZONE_NAME }}
+        gcp_dns_record_set_name: ${{ env.GCP_DOMAIN_NAME }}
+        gcp_dns_record_ttl: '300'
+      continue-on-error: true
