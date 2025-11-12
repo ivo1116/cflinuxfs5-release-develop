@@ -128,3 +128,16 @@ runs:
         else
           echo "No BBL state changes to commit."
         fi
+
+    - name: Manage GCP DNS (Add)
+      if: success()
+      uses: ./.github/actions/manage-gcp-dns
+      with:
+        action: add
+        bbl_state_dir: bbl-state/${{ inputs.env_name }}
+        gcp_dns_service_account_key: ${{ env.GCP_SERVICE_ACCOUNT_KEY }}
+        gcp_dns_zone_name: ${{ env.GCP_DNS_ZONE_NAME }}
+        gcp_dns_record_set_name: ${{ inputs.env_name }}.${{ env.GCP_DNS_SUFFIX }}
+        gcp_dns_record_ttl: '300'
+        check_dns: 'true'
+        max_success_count: '3'

@@ -1,0 +1,98 @@
+name: 'Manage GCP DNS'
+description: 'Add or remove DNS records in GCP Cloud DNS'
+
+inputs:
+  action:
+    description: 'Action to perform (add or remove)'
+    required: true
+  bbl_state_dir:
+    description: 'Path to BBL state directory'
+    required: true
+  gcp_dns_service_account_key:
+    description: 'GCP service account key for DNS management'
+    required: true
+  gcp_dns_zone_name:
+    description: 'GCP DNS zone name'
+    required: true
+  gcp_dns_record_set_name:
+    description: 'DNS record set name'
+    required: true
+  gcp_dns_record_ttl:
+    description: 'DNS record TTL'
+    required: false
+    default: '300'
+  check_dns:
+    description: 'Whether to verify DNS after adding'
+    required: false
+    default: 'false'
+  max_success_count:
+    description: 'Number of successful DNS checks required'
+    required: false
+    default: '3'
+
+outputs:
+  success:
+    description: 'Whether DNS operation succeeded'
+    value: ${{ steps.manage-dns.outputs.success }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Install gcloud CLI
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        if ! command -v gcloud &> /dev/null; then
+          echo "Installing gcloud CLI..."
+          curl -sSL https://sdk.cloud.google.com | bash
+          exec -l $SHELL
+          gcloud init --skip-diagnostics
+        fi
+        
+        echo "gcloud version:"
+        gcloud --version
+
+    - name: Install BBL
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        if ! command -v bbl &> /dev/null; then
+          echo "Installing BBL..."
+          wget -O /tmp/bbl https://github.com/cloudfoundry/bosh-bootloader/releases/download/v9.0.36/bbl-v9.0.36_linux_amd64
+          chmod +x /tmp/bbl
+          sudo mv /tmp/bbl /usr/local/bin/bbl
+        fi
+        
+        echo "BBL version:"
+        bbl --version
+
+    - name: Make script executable
+      shell: bash
+      run: |
+        chmod +x .github/scripts/manage-gcp-dns.sh
+
+    - name: Execute DNS management script
+      id: manage-dns
+      shell: bash
+      env:
+        ACTION: ${{ inputs.action }}
+        BBL_STATE_DIR: ${{ inputs.bbl_state_dir }}
+        GCP_DNS_SERVICE_ACCOUNT_KEY: ${{ inputs.gcp_dns_service_account_key }}
+        GCP_DNS_ZONE_NAME: ${{ inputs.gcp_dns_zone_name }}
+        GCP_DNS_RECORD_SET_NAME: ${{ inputs.gcp_dns_record_set_name }}
+        GCP_DNS_RECORD_TTL: ${{ inputs.gcp_dns_record_ttl }}
+        CHECK_DNS: ${{ inputs.check_dns }}
+        MAX_SUCCESS_COUNT: ${{ inputs.max_success_count }}
+      run: |
+        set -euo pipefail
+        
+        echo "Running DNS management script..."
+        echo "Action: ${ACTION}"
+        echo "DNS Zone: ${GCP_DNS_ZONE_NAME}"
+        echo "Record Set: ${GCP_DNS_RECORD_SET_NAME}"
+        
+        .github/scripts/manage-gcp-dns.sh
+        
+        echo "success=true" >> $GITHUB_OUTPUT
