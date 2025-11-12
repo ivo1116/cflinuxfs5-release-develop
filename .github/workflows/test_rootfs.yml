@@ -90,7 +90,7 @@ jobs:
           CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
           CFLINUXFS5_LB_KEY: ${{ secrets.CFLINUXFS5_LB_KEY }}
           GCP_DNS_ZONE_NAME: ${{ vars.GCP_DNS_ZONE_NAME }}
-          GCP_DNS_SUFFIX: ${{ vars.GCP_DNS_SUFFIX }}
+          GCP_DOMAIN_NAME: ${{ vars.SYSTEM_DOMAIN}}
 
       - name: Wait after BBL up
         run: |
@@ -230,7 +230,7 @@ jobs:
           CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
           CFLINUXFS5_LB_KEY: ${{ secrets.CFLINUXFS5_LB_KEY }}
           GCP_DNS_ZONE_NAME: ${{ vars.GCP_DNS_ZONE_NAME }}
-          GCP_DNS_SUFFIX: ${{ vars.GCP_DNS_SUFFIX }}
+          GCP_DOMAIN_NAME: ${{ vars.SYSTEM_DOMAIN}}
 
   trigger-release-workflow:
     name: Trigger Release Workflow
