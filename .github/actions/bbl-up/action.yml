@@ -124,7 +124,7 @@ runs:
         git config user.email "tanzu-buildpacks.pdl@broadcom.com"
         
         git add -A
-        git reset -- */gcp-key.json */service-account-key.json */*-key.json */*.key */*.pem */private_key */id_rsa* 
+        git reset -- */gcp-key.json */service-account-key.json */*-key.json */*.key */*.pem */private_key */id_rsa*
         
         if [[ -n "$(git status --porcelain)" ]]; then
           git commit -m "Update BBL state for ${{ inputs.env_name }}"
