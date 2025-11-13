@@ -100,7 +100,7 @@ runs:
         export BBL_IAAS=gcp
         
         echo "Running bbl destroy..."
-        bbl destroy --no-confirm --terraform-binary --debug /usr/local/bin/terraform
+        bbl destroy --no-confirm --terraform-binary /usr/local/bin/terraform --debug
         
         echo "Environment destroyed successfully"
         echo "success=true" >> "$GITHUB_OUTPUT"
