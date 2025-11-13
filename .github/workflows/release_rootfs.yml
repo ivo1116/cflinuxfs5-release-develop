@@ -103,6 +103,10 @@ jobs:
           bucket_name: ${{ vars.BUCKET_NAME }}
           default_branch: main
           cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   reset-version-to-rc:
     name: Reset to Next Minor RC
@@ -126,6 +130,10 @@ jobs:
           bucket_name: ${{ vars.BUCKET_NAME }}
           key: versions/stack-${{ vars.STACK }}
           version: ${{ steps.bump.outputs.next_rc }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   upload-to-github:
     name: Upload to GitHub
@@ -147,6 +155,10 @@ jobs:
           owner: ${{ github.repository_owner }}
           repo: ${{ vars.STACK }}
           include_receipt: 'true'
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   upload-to-docker:
     name: Upload to Docker Hub
@@ -166,6 +178,10 @@ jobs:
           docker_image: ${{ vars.DOCKER_IMAGE }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   create-bosh-release:
     name: Create and Publish BOSH Release
@@ -191,6 +207,10 @@ jobs:
           aws_region: ${{ secrets.AWS_REGION }}
           owner: ${{ vars.REPO_OWNER }}
           release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
       - name: Delete RC BOSH release artifact
         uses: ./.github/actions/delete-rc-artifacts
@@ -199,6 +219,10 @@ jobs:
           rc_version: ${{ needs.resolve-inputs.outputs.rc_version }}
           bucket_name: ${{ vars.BUCKET_NAME }}
           artifact_types: 'stack, receipt, release'
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   summary:
     name: Release Summary
