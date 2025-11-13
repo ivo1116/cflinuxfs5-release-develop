@@ -115,6 +115,7 @@ runs:
         echo "success=true" >> "$GITHUB_OUTPUT"
 
     - name: Commit and push BBL state
+      if: always()
       shell: bash
       run: |
         set -euo pipefail
