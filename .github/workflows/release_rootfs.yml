@@ -177,7 +177,7 @@ jobs:
           bucket_name: ${{ vars.BUCKET_NAME }}
           docker_image: ${{ vars.DOCKER_IMAGE }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
-          dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          dockerhub_password: ${{ secrets.DOCKERHUB_PASSWORD }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
