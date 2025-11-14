@@ -72,7 +72,7 @@ jobs:
           cflinuxfs_release_ref: main
           golang_release_repo: ${{ vars.GOLANG_RELEASE_REPO }}
           golang_release_ref: main
-          release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+          release_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
 
   determine-build-needed:
     name: Determine if Build is Needed
@@ -150,7 +150,7 @@ jobs:
           go_version: ${{ vars.GOLANG_VERSION }}
           aws_region: ${{ secrets.AWS_REGION }}
           cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
-          release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+          release_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
