@@ -179,7 +179,7 @@ jobs:
           stack: ${{ vars.STACK }}
           owner: ${{ github.repository_owner }}
           current_version: ${{ needs.resolve-inputs.outputs.version }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
 
   cleanup-deployments:
     name: Cleanup CF Deployments
@@ -247,7 +247,7 @@ jobs:
       - name: Trigger Release Workflow
         uses: ./.github/actions/trigger-release-workflow
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
           version: ${{ needs.resolve-inputs.outputs.version }}
 
   test-summary:

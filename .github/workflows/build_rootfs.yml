@@ -118,7 +118,7 @@ jobs:
         id: previous-release
         uses: ./.github/actions/get-previous-release-tag
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
           owner: ${{ github.repository_owner }}
           repo: ${{ vars.STACK }}
 
@@ -160,7 +160,7 @@ jobs:
         if: success()
         uses: ./.github/actions/trigger-test-workflow
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
+          github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
           version: ${{ needs.gather-resources.outputs.version }}
 
   build-summary:
