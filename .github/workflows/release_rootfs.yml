@@ -175,7 +175,7 @@ jobs:
           stack: ${{ vars.STACK }}
           version: ${{ needs.release-rootfs-repo.outputs.final_version }}
           bucket_name: ${{ vars.BUCKET_NAME }}
-          docker_image: ${{ vars.DOCKER_IMAGE }}
+          docker_image: ${{ vars.STACK }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_password: ${{ secrets.DOCKERHUB_PASSWORD }}
         env:
