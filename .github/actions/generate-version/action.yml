@@ -1,9 +1,9 @@
 name: 'Generate Version'
-description: 'Generate next version based on previous release and format'
+description: 'Generate next version based on previous version and format (supports beta-rc and rc modes)'
 
 inputs:
   previous_tag:
-    description: 'Previous release tag'
+    description: 'Previous version from S3 (e.g., 1.2.3-beta-rc.1 or 1.2.3-rc.1)'
     required: false
   version_format:
     description: 'Version format (minor or patch)'
@@ -23,23 +23,54 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        
+
         PREVIOUS="${{ inputs.previous_tag }}"
         VERSION_FORMAT="${{ inputs.version_format }}"
-        PREVIOUS=${PREVIOUS#v}  
-        
+        PREVIOUS=${PREVIOUS#v}
+
+        if [[ "$PREVIOUS" =~ -beta ]]; then
+          MODE="beta"
+          SUFFIX="-beta-rc"
+        else
+          MODE="rc"
+          SUFFIX="-rc"
+        fi
+
         if [[ -z "$PREVIOUS" ]]; then
           VERSION="1.0.0-rc.1"
+
+        elif [[ "$PREVIOUS" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta-rc\.([0-9]+)$ ]]; then
+          BASE_VERSION="${BASH_REMATCH[1]}"
+          RC_NUMBER="${BASH_REMATCH[2]}"
+          NEW_RC_NUMBER=$((RC_NUMBER + 1))
+          VERSION="${BASE_VERSION}-beta-rc.${NEW_RC_NUMBER}"
+
         elif [[ "$PREVIOUS" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc\.([0-9]+)$ ]]; then
           BASE_VERSION="${BASH_REMATCH[1]}"
           RC_NUMBER="${BASH_REMATCH[2]}"
           NEW_RC_NUMBER=$((RC_NUMBER + 1))
           VERSION="${BASE_VERSION}-rc.${NEW_RC_NUMBER}"
+
+        elif [[ "$PREVIOUS" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta$ ]]; then
+          if [[ "$PREVIOUS" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)-beta$ ]]; then
+            major="${BASH_REMATCH[1]}"
+            minor="${BASH_REMATCH[2]}"
+            patch="${BASH_REMATCH[3]}"
+
+            if [[ "$VERSION_FORMAT" == "minor" ]]; then
+              new_minor=$((minor + 1))
+              VERSION="${major}.${new_minor}.0-beta-rc.1"
+            else
+              new_patch=$((patch + 1))
+              VERSION="${major}.${minor}.${new_patch}-beta-rc.1"
+            fi
+          fi
+
         elif [[ "$PREVIOUS" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
           major="${BASH_REMATCH[1]}"
           minor="${BASH_REMATCH[2]}"
           patch="${BASH_REMATCH[3]}"
-          
+
           if [[ "$VERSION_FORMAT" == "minor" ]]; then
             new_minor=$((minor + 1))
             VERSION="${major}.${new_minor}.0-rc.1"
@@ -47,10 +78,11 @@ runs:
             new_patch=$((patch + 1))
             VERSION="${major}.${minor}.${new_patch}-rc.1"
           fi
+
         else
           echo "ERROR: Cannot parse version format: $PREVIOUS"
           exit 1
         fi
-        
+
         echo "version=$VERSION" >> $GITHUB_OUTPUT
-        echo "Generated version: $VERSION (format: $VERSION_FORMAT, previous: ${PREVIOUS:-none})"
+        echo "Generated version: $VERSION (mode: $MODE, format: $VERSION_FORMAT, previous: ${PREVIOUS:-none})"

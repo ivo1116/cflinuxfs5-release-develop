@@ -1,14 +1,14 @@
 name: 'Finalize Version'
-description: 'Convert RC version to final version'
+description: 'Convert RC or Beta-RC version to final version'
 
 inputs:
   rc_version:
-    description: 'RC version to finalize (e.g. 1.2.3-rc.4)'
+    description: 'RC or Beta-RC version to finalize (e.g. 1.2.3-rc.4 or 1.2.3-beta-rc.4)'
     required: true
 
 outputs:
   final_version:
-    description: 'Final version without RC suffix'
+    description: 'Final version (e.g. 1.2.3 or 1.2.3-beta)'
     value: ${{ steps.calc.outputs.final_version }}
 
 runs:
@@ -19,13 +19,16 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        
+
         ver="${{ inputs.rc_version }}"
-        if [[ "$ver" =~ ^[0-9]+\.[0-9]+\.[0-9]+-rc\.[0-9]+$ ]]; then
-          final="${ver%-rc.*}"
+
+        if [[ "$ver" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-beta-rc\.[0-9]+$ ]]; then
+          final="${BASH_REMATCH[1]}-beta"
+        elif [[ "$ver" =~ ^([0-9]+\.[0-9]+\.[0-9]+)-rc\.[0-9]+$ ]]; then
+          final="${BASH_REMATCH[1]}"
         else
           final="$ver"
         fi
-        
+
         echo "final_version=$final" >> $GITHUB_OUTPUT
         echo "Finalized version: $ver -> $final"

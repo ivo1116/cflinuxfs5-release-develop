@@ -1,0 +1,45 @@
+name: 'Get Version from S3'
+description: 'Read the current version from S3 as single source of truth'
+
+inputs:
+  bucket_name:
+    description: 'S3 bucket name'
+    required: true
+  key:
+    description: 'S3 object key to read (e.g., versions/stack-cflinuxfs5)'
+    required: true
+
+outputs:
+  version:
+    description: 'Current version from S3'
+    value: ${{ steps.get-version.outputs.version }}
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Configure AWS credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ env.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ env.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ env.AWS_REGION }}
+
+    - name: Get version from S3
+      id: get-version
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        BUCKET="${{ inputs.bucket_name }}"
+        KEY="${{ inputs.key }}"
+
+        # Try to download the version file
+        if aws s3 cp "s3://${BUCKET}/${KEY}" version.txt --no-progress 2>/dev/null; then
+          VERSION=$(cat version.txt | tr -d '[:space:]')
+          rm -f version.txt
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "Current version from S3: $VERSION"
+        else
+          echo "No version file found in S3, starting fresh"
+          echo "version=" >> $GITHUB_OUTPUT
+        fi
