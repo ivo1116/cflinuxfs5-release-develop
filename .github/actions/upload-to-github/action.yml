@@ -87,7 +87,7 @@ runs:
       with:
         name: ${{ inputs.version }}
         repository: ${{ inputs.owner }}/${{ inputs.repo }}
-        tag_name: ${{ inputs.version }}
+        tag_name: beta-${{ inputs.version }}
         body_path: release-body/body
         files: release-assets/*
       env:
