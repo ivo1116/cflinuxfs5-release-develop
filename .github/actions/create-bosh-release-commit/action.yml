@@ -20,31 +20,36 @@ outputs:
 runs:
   using: 'composite'
   steps:
-    - name: Commit and push changes
-      id: commit
-      shell: bash
-      run: |
-        set -euo pipefail
-        
-        pushd "${{ inputs.release_dir }}"
+  - name: Commit and push changes
+    id: commit
+    shell: bash
+    run: |
+      set -euo pipefail
+      
+      pushd "${{ inputs.release_dir }}"
 
-          git config user.name "${{ inputs.git_user_name }}"
-          git config user.email "${{ inputs.git_user_email }}"
+        git config user.name "${{ inputs.git_user_name }}"
+        git config user.email "${{ inputs.git_user_email }}"
 
-          git add config/blobs.yml
-          git add .final_builds/
-          git add releases/
+        git add config/blobs.yml
+        git add .final_builds/
+        git add releases/
 
-          if git diff --staged --quiet; then
-            echo "No changes to commit"
-            sha=$(git rev-parse HEAD)
-          else
-            git commit -m "Finalize BOSH release"
-            sha=$(git rev-parse HEAD)
-          fi
+        if git diff --staged --quiet; then
+          echo "No changes to commit"
+          sha=$(git rev-parse HEAD)
+        else
+          git commit -m "Finalize BOSH release"
+          sha=$(git rev-parse HEAD)
+        fi
 
-          git push origin HEAD:${GITHUB_REF_NAME}
+        git fetch origin
+        git pull --rebase origin ${GITHUB_REF_NAME}
 
-          echo "commit_sha=$sha" >> "$GITHUB_OUTPUT"
+        git push origin HEAD:${GITHUB_REF_NAME}
 
-        popd
+        sha=$(git rev-parse HEAD)
+
+        echo "commit_sha=$sha" >> "$GITHUB_OUTPUT"
+
+      popd

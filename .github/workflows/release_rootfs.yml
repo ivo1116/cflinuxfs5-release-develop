@@ -226,8 +226,8 @@ jobs:
           release_repo: ${{ vars.STACK }}-release
           bucket_name: ${{ vars.BUCKET_NAME }}
           default_branch: main
-          git_user_name: ${{ vars.STACK }}-bot
-          git_user_email: ${{ vars.STACK }}-bot@test.com
+          git_user_name: app-runtime-interfaces@cloudfoundry.org
+          git_user_email: app-runtime-interfaces@cloudfoundry.org
           github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
           go_version: ${{ vars.GOLANG_VERSION }}
           aws_region: ${{ secrets.AWS_REGION }}
