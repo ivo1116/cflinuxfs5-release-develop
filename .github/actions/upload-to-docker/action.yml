@@ -49,6 +49,6 @@ runs:
     - name: Import and push tags
       uses: ./.github/actions/docker-import-and-push
       with:
-        image: cloudfoundry/${{ inputs.docker_image }}
+        image: cfbuildpacks/${{ inputs.docker_image }}
         version: ${{ inputs.version }}
         tar_path: docker-s3/${{ inputs.stack }}.tar.gz

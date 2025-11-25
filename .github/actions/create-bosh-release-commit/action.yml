@@ -40,13 +40,11 @@ runs:
           sha=$(git rev-parse HEAD)
         else
           git commit -m "Finalize BOSH release"
-          sha=$(git rev-parse HEAD)
         fi
 
         git fetch origin
-        git pull --rebase origin ${GITHUB_REF_NAME}
 
-        git push origin HEAD:${GITHUB_REF_NAME}
+        git push --force-with-lease origin HEAD:${GITHUB_REF_NAME}
 
         sha=$(git rev-parse HEAD)
 
