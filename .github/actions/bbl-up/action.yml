@@ -90,8 +90,7 @@ runs:
         export BBL_GCP_REGION="${{ inputs.gcp_region }}"
         export BBL_IAAS=gcp
 
-        SHORT_ENV_NAME="fs5-$(date +%m%d)"
-        export BBL_ENV_NAME="${SHORT_ENV_NAME}"
+        export BBL_ENV_NAME="${{ inputs.STACK }}"
 
         if [[ -n "${CFLINUXFS5_LB_CERT:-}" && -n "${CFLINUXFS5_LB_KEY:-}" ]]; then
           printf "%s" "${CFLINUXFS5_LB_CERT}" > lb-cert.pem
