@@ -94,6 +94,10 @@ jobs:
           event_name: ${{ github.event_name }}
           event_action: ${{ github.event.action }}
           trigger_reason: ${{ github.event.inputs.trigger_reason }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   gather-resources:
     name: Gather Resources
