@@ -73,6 +73,10 @@ jobs:
           golang_release_repo: ${{ vars.GOLANG_RELEASE_REPO }}
           golang_release_ref: main
           release_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
+        env:
+          AWS_REGION: ${{ secrets.AWS_REGION }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   determine-build-needed:
     name: Determine if Build is Needed
@@ -94,10 +98,6 @@ jobs:
           event_name: ${{ github.event_name }}
           event_action: ${{ github.event.action }}
           trigger_reason: ${{ github.event.inputs.trigger_reason }}
-        env:
-          AWS_REGION: ${{ secrets.AWS_REGION }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
   gather-resources:
     name: Gather Resources
