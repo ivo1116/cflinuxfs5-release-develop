@@ -44,7 +44,7 @@ runs:
 
         git fetch origin
 
-        git push --force-with-lease origin HEAD:${GITHUB_REF_NAME}
+        git push origin HEAD:${GITHUB_REF_NAME}
 
         sha=$(git rev-parse HEAD)
 
