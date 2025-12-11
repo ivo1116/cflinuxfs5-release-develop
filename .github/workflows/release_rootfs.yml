@@ -225,7 +225,7 @@ jobs:
           version: ${{ needs.release-rootfs-repo.outputs.final_version }}
           release_repo: ${{ vars.STACK }}-release
           bucket_name: ${{ vars.BUCKET_NAME }}
-          default_branch: main
+          default_branch: dev
           git_user_name: app-runtime-interfaces@cloudfoundry.org
           git_user_email: app-runtime-interfaces@cloudfoundry.org
           github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
