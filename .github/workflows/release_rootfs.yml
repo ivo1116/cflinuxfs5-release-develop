@@ -239,6 +239,7 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
 
       - name: Delete RC BOSH release artifact
+        if: ${{ steps.create_and_publish.outputs.success == 'true' }}
         uses: ./.github/actions/delete-rc-artifacts
         with:
           stack: ${{ vars.STACK }}

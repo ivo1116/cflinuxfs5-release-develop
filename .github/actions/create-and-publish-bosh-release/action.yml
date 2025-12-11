@@ -39,6 +39,11 @@ inputs:
     description: 'SSH deploy key for release repo'
     required: true
 
+outputs:
+  success:
+    description: 'Indicates if the action ran without issues'
+    value: ${{ steps.set_success.outputs.success }}
+
 runs:
   using: 'composite'
   steps:
@@ -119,3 +124,9 @@ runs:
         version: ${{ inputs.version }}
         owner: ${{ inputs.owner }}
         repo: ${{ inputs.release_repo }}
+
+    - name: Set success output
+      id: set_success
+      if: success()
+      shell: bash
+      run: echo "success=true" >> $GITHUB_OUTPUT
