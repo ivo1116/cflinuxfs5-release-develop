@@ -3,8 +3,12 @@ description: 'Create a BOSH release tarball (final or dev) with vendored golang-
 
 inputs:
   stack:
-    description: 'Stack name (e.g., {your-cflinuxfs-version})'
+    description: 'Stack name (e.g., cflinuxfs5) - used for BOSH package dependencies'
     required: true
+  artifact_stack:
+    description: 'Artifact stack name (e.g., cflinuxfs5-fips) - used for tarball filenames. Defaults to stack if not provided.'
+    required: false
+    default: ''
   bucket_name:
     description: 'S3 bucket name'
     required: true
@@ -163,13 +167,20 @@ runs:
         cd ${{ inputs.release_dir }}
         
         STACK="${{ inputs.stack }}"
+        ARTIFACT_STACK="${{ inputs.artifact_stack }}"
+        # Default artifact_stack to stack if not provided
+        if [[ -z "$ARTIFACT_STACK" ]]; then
+          ARTIFACT_STACK="$STACK"
+        fi
         VERSION="${{ inputs.version }}"
         
         mkdir -p blobs/rootfs
-        cp ../rootfs-artifacts/${STACK}-${VERSION}.tar.gz blobs/rootfs/
+        # Use artifact_stack for the tarball filename (e.g., cflinuxfs5-fips-1.0.0.tar.gz)
+        cp ../rootfs-artifacts/${ARTIFACT_STACK}-${VERSION}.tar.gz blobs/rootfs/
         
         echo "Adding rootfs blob..."
-        bosh add-blob blobs/rootfs/${STACK}-${VERSION}.tar.gz rootfs/${STACK}-${VERSION}.tar.gz
+        # Use artifact_stack in blob path for consistency
+        bosh add-blob blobs/rootfs/${ARTIFACT_STACK}-${VERSION}.tar.gz rootfs/${ARTIFACT_STACK}-${VERSION}.tar.gz
 
     - name: Sync blobs
       shell: bash
@@ -190,11 +201,17 @@ runs:
         cd ${{ inputs.release_dir }}
         
         STACK="${{ inputs.stack }}"
+        ARTIFACT_STACK="${{ inputs.artifact_stack }}"
+        # Default artifact_stack to stack if not provided
+        if [[ -z "$ARTIFACT_STACK" ]]; then
+          ARTIFACT_STACK="$STACK"
+        fi
         VERSION="${{ inputs.version }}"
         FINAL="${{ inputs.final }}"
         
         mkdir -p ../rootfs-artifacts
-        OUTPUT="../rootfs-artifacts/${STACK}-release-${VERSION}.tgz"
+        # Use artifact_stack for output tarball naming (e.g., cflinuxfs5-fips-release-1.0.0.tgz)
+        OUTPUT="../rootfs-artifacts/${ARTIFACT_STACK}-release-${VERSION}.tgz"
         
         if [[ "$FINAL" == "true" ]]; then
           echo "Creating FINAL release..."

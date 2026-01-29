@@ -88,10 +88,11 @@ runs:
     - name: Build cflinuxfs BOSH release
       uses: ./.github/actions/create-bosh-release
       with:
-        stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
+        stack: ${{ inputs.stack }}
+        artifact_stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
-        release_name: ${{ steps.make-rootfs.outputs.artifact_stack }}
+        release_name: ${{ inputs.stack }}
         release_repo: ${{ inputs.release_repo }}
         release_deploy_key: ${{ inputs.release_deploy_key }}
         go_version: ${{ inputs.go_version }}
