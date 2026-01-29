@@ -9,6 +9,22 @@ on:
         description: RC version to release (e.g. 1.2.0-rc.4)
         required: true
         default: 1.0.0-rc.1
+      fips_mode:
+        description: 'FIPS mode'
+        type: choice
+        required: false
+        default: 'normal'
+        options:
+          - normal
+          - fips
+      fips_method:
+        description: 'FIPS build method'
+        type: choice
+        required: false
+        default: 'source'
+        options:
+          - source
+          - ubuntu-pro
       skip_github_release:
         description: Skip GitHub release
         type: boolean
@@ -28,7 +44,7 @@ permissions:
   id-token: write
 
 concurrency:
-  group:  cflinusfs
+  group: cflinuxfs5-release
   cancel-in-progress: false
 
 defaults:
@@ -44,6 +60,9 @@ jobs:
       final_version: ${{ steps.final.outputs.final_version }}
       previous_tag: ${{ steps.previous.outputs.previous_tag }}
       proceed: ${{ steps.guard.outputs.proceed }}
+      fips_mode: ${{ steps.set-vars.outputs.fips_mode }}
+      fips_method: ${{ steps.set-vars.outputs.fips_method }}
+      effective_stack: ${{ steps.effective-stack.outputs.effective_stack }}
       skip_github_release: ${{ steps.set-vars.outputs.skip_github_release }}
       skip_docker_release: ${{ steps.set-vars.outputs.skip_docker_release }}
       skip_bosh_release: ${{ steps.set-vars.outputs.skip_bosh_release }}
@@ -57,9 +76,24 @@ jobs:
         with:
           repository_dispatch_version: ${{ github.event.client_payload.version }}
           workflow_dispatch_version: ${{ github.event.inputs.version }}
+          fips_mode: ${{ github.event.client_payload.fips_mode || github.event.inputs.fips_mode || 'normal' }}
+          fips_method: ${{ github.event.client_payload.fips_method || github.event.inputs.fips_method || 'source' }}
           skip_github_release: ${{ github.event.client_payload.skip_github_release || github.event.inputs.skip_github_release || 'false' }}
           skip_docker_release: ${{ github.event.client_payload.skip_docker_release || github.event.inputs.skip_docker_release || 'false' }}
           skip_bosh_release: ${{ github.event.client_payload.skip_bosh_release || github.event.inputs.skip_bosh_release || 'false' }}
+
+      - name: Compute effective stack name
+        id: effective-stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          STACK="${{ vars.STACK }}"
+          FIPS_MODE="${{ steps.set-vars.outputs.fips_mode }}"
+          if [[ "$FIPS_MODE" == "fips" ]]; then
+            echo "effective_stack=${STACK}-fips" >> $GITHUB_OUTPUT
+          else
+            echo "effective_stack=${STACK}" >> $GITHUB_OUTPUT
+          fi
 
       - name: Preflight guard
         id: guard
@@ -97,7 +131,7 @@ jobs:
         uses: ./.github/actions/release-rootfs-repo
         with:
           rootfs_repo: ${{ vars.ROOTFS_REPO }}
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           rc_version: ${{ needs.resolve-inputs.outputs.rc_version }}
           final_version: ${{ needs.resolve-inputs.outputs.final_version }}
           bucket_name: ${{ vars.BUCKET_NAME }}
@@ -139,7 +173,7 @@ jobs:
       - name: Upload to GitHub release
         uses: ./.github/actions/upload-to-github
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           version: ${{ needs.release-rootfs-repo.outputs.final_version }}
           previous_version: ${{ needs.resolve-inputs.outputs.previous_tag }}
           bucket_name: ${{ vars.BUCKET_NAME }}
@@ -160,12 +194,13 @@ jobs:
       - name: Upload to Docker Hub
         uses: ./.github/actions/upload-to-docker
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           version: ${{ needs.release-rootfs-repo.outputs.final_version }}
           bucket_name: ${{ vars.BUCKET_NAME }}
           docker_image: ${{ vars.DOCKER_IMAGE }}
           dockerhub_username: ${{ vars.DOCKERHUB_USERNAME }}
           dockerhub_token: ${{ secrets.DOCKERHUB_TOKEN }}
+          fips_mode: ${{ needs.resolve-inputs.outputs.fips_mode }}
 
   create-bosh-release:
     name: Create and Publish BOSH Release
@@ -179,7 +214,7 @@ jobs:
       - name: Create and publish BOSH release
         uses: ./.github/actions/create-and-publish-bosh-release
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           version: ${{ needs.release-rootfs-repo.outputs.final_version }}
           release_repo: ${{ vars.STACK }}-release
           bucket_name: ${{ vars.BUCKET_NAME }}
@@ -195,7 +230,7 @@ jobs:
       - name: Delete RC BOSH release artifact
         uses: ./.github/actions/delete-rc-artifacts
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           rc_version: ${{ needs.resolve-inputs.outputs.rc_version }}
           bucket_name: ${{ vars.BUCKET_NAME }}
           artifact_types: 'stack, receipt, release'

@@ -7,6 +7,22 @@ on:
         description: 'Reason for triggering build'
         required: false
         default: 'Manual trigger'
+      fips_mode:
+        description: 'Build FIPS-compliant rootfs'
+        type: choice
+        required: false
+        default: 'normal'
+        options:
+          - normal
+          - fips
+      fips_method:
+        description: 'FIPS build method (only used when fips_mode is fips)'
+        type: choice
+        required: false
+        default: 'source'
+        options:
+          - source
+          - ubuntu-pro
   schedule:
     - cron: '32 14 * * *'
   repository_dispatch:
@@ -151,6 +167,8 @@ jobs:
           aws_region: ${{ vars.AWS_REGION }}
           cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
           release_deploy_key: ${{ secrets.CFLINUXFS5_RELEASE_DEPLOY_KEY }}
+          fips_mode: ${{ github.event.inputs.fips_mode || 'normal' }}
+          fips_method: ${{ github.event.inputs.fips_method || 'source' }}
 
       - name: Dispatch Test Workflow
         if: success()
@@ -158,6 +176,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ needs.gather-resources.outputs.version }}
+          fips_mode: ${{ github.event.inputs.fips_mode || 'normal' }}
+          fips_method: ${{ github.event.inputs.fips_method || 'source' }}
 
   build-summary:
     name: Build Summary

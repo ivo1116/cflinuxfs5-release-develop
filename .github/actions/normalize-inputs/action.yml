@@ -8,6 +8,14 @@ inputs:
   workflow_dispatch_version:
     description: 'Version from workflow_dispatch event'
     required: false
+  fips_mode:
+    description: 'FIPS mode (normal or fips)'
+    required: false
+    default: 'normal'
+  fips_method:
+    description: 'FIPS build method (source or ubuntu-pro)'
+    required: false
+    default: 'source'
   skip_github_release:
     description: 'Skip GitHub release'
     required: false
@@ -25,6 +33,12 @@ outputs:
   rc_version:
     description: 'Resolved RC version'
     value: ${{ steps.normalize.outputs.rc_version }}
+  fips_mode:
+    description: 'Normalized FIPS mode flag'
+    value: ${{ steps.normalize.outputs.fips_mode }}
+  fips_method:
+    description: 'Normalized FIPS build method'
+    value: ${{ steps.normalize.outputs.fips_method }}
   skip_github_release:
     description: 'Normalized skip GitHub release flag'
     value: ${{ steps.normalize.outputs.skip_github_release }}
@@ -43,16 +57,20 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        
+
         version="${{ inputs.repository_dispatch_version || inputs.workflow_dispatch_version }}"
         if [[ -z "$version" ]]; then
           echo "ERROR: No version provided"
           exit 1
         fi
-        
+
         echo "rc_version=$version" >> $GITHUB_OUTPUT
+        echo "fips_mode=${{ inputs.fips_mode }}" >> $GITHUB_OUTPUT
+        echo "fips_method=${{ inputs.fips_method }}" >> $GITHUB_OUTPUT
         echo "skip_github_release=${{ inputs.skip_github_release }}" >> $GITHUB_OUTPUT
         echo "skip_docker_release=${{ inputs.skip_docker_release }}" >> $GITHUB_OUTPUT
         echo "skip_bosh_release=${{ inputs.skip_bosh_release }}" >> $GITHUB_OUTPUT
-        
+
         echo "Normalized version: $version"
+        echo "FIPS mode: ${{ inputs.fips_mode }}"
+        echo "FIPS method: ${{ inputs.fips_method }}"

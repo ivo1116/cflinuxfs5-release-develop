@@ -3,7 +3,7 @@ description: 'Build and push Docker image to Docker Hub'
 
 inputs:
   stack:
-    description: 'Stack name'
+    description: 'Stack name (including -fips suffix if applicable)'
     required: true
   version:
     description: 'Version to tag'
@@ -20,6 +20,10 @@ inputs:
   dockerhub_token:
     description: 'Docker Hub token'
     required: true
+  fips_mode:
+    description: 'FIPS mode (normal or fips)'
+    required: false
+    default: 'normal'
 
 runs:
   using: 'composite'
@@ -52,3 +56,4 @@ runs:
         image: ${{ inputs.docker_image }}
         version: ${{ inputs.version }}
         tar_path: docker-s3/${{ inputs.stack }}.tar.gz
+        fips_mode: ${{ inputs.fips_mode }}

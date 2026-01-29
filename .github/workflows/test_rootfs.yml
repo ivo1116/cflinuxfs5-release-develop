@@ -9,6 +9,22 @@ on:
         description: 'Version to test'
         default: '1.0.0-rc.1'
         required: true
+      fips_mode:
+        description: 'FIPS mode'
+        type: choice
+        required: false
+        default: 'normal'
+        options:
+          - normal
+          - fips
+      fips_method:
+        description: 'FIPS build method'
+        type: choice
+        required: false
+        default: 'source'
+        options:
+          - source
+          - ubuntu-pro
       skip_cleanup:
         description: 'Skip infrastructure cleanup'
         type: boolean
@@ -41,6 +57,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.set-vars.outputs.version }}
+      fips_mode: ${{ steps.set-vars.outputs.fips_mode }}
+      fips_method: ${{ steps.set-vars.outputs.fips_method }}
+      effective_stack: ${{ steps.effective-stack.outputs.effective_stack }}
       skip_cleanup: ${{ steps.set-vars.outputs.skip_cleanup }}
       skip_setup: ${{ steps.set-vars.outputs.skip_setup }}
       skip_deploy: ${{ steps.set-vars.outputs.skip_deploy }}
@@ -55,10 +74,25 @@ jobs:
         with:
           repository_dispatch_version: ${{ github.event.client_payload.version }}
           workflow_dispatch_version: ${{ github.event.inputs.version }}
+          fips_mode: ${{ github.event.client_payload.fips_mode || github.event.inputs.fips_mode || 'normal' }}
+          fips_method: ${{ github.event.client_payload.fips_method || github.event.inputs.fips_method || 'source' }}
           skip_cleanup: ${{ github.event.client_payload.skip_cleanup || github.event.inputs.skip_cleanup || 'true' }}
           skip_setup: ${{ github.event.client_payload.skip_setup || github.event.inputs.skip_setup || 'true' }}
           skip_deploy: ${{ github.event.client_payload.skip_deploy || github.event.inputs.skip_deploy || 'true' }}
           skip_cats: ${{ github.event.client_payload.skip_cats || github.event.inputs.skip_cats || 'false' }}
+
+      - name: Compute effective stack name
+        id: effective-stack
+        shell: bash
+        run: |
+          set -euo pipefail
+          STACK="${{ vars.STACK }}"
+          FIPS_MODE="${{ steps.set-vars.outputs.fips_mode }}"
+          if [[ "$FIPS_MODE" == "fips" ]]; then
+            echo "effective_stack=${STACK}-fips" >> $GITHUB_OUTPUT
+          else
+            echo "effective_stack=${STACK}" >> $GITHUB_OUTPUT
+          fi
 
   setup-test-environment:
     name: Setup Test Environment
@@ -116,7 +150,7 @@ jobs:
         id: deploy
         uses: ./.github/actions/deploy-cf
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           env_name: ${{ vars.STACK }}
           version: ${{ needs.resolve-inputs.outputs.version }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
@@ -177,7 +211,7 @@ jobs:
         id: race-check
         uses: ./.github/actions/check-race-condition
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
           owner: ${{ github.repository_owner }}
           current_version: ${{ needs.resolve-inputs.outputs.version }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
@@ -248,6 +282,8 @@ jobs:
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
           version: ${{ needs.resolve-inputs.outputs.version }}
+          fips_mode: ${{ needs.resolve-inputs.outputs.fips_mode }}
+          fips_method: ${{ needs.resolve-inputs.outputs.fips_method }}
 
   test-summary:
     name: Test Summary

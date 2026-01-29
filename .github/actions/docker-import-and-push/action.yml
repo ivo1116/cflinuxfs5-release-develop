@@ -11,6 +11,10 @@ inputs:
   tar_path:
     description: 'Path to rootfs tarball for docker import'
     required: true
+  fips_mode:
+    description: 'FIPS mode (normal or fips)'
+    required: false
+    default: 'normal'
 
 runs:
   using: 'composite'
@@ -20,18 +24,32 @@ runs:
       run: |
         set -euo pipefail
         
+        FIPS_MODE="${{ inputs.fips_mode }}"
+        VERSION="${{ inputs.version }}"
+        IMAGE="${{ inputs.image }}"
+
+        # Compute tag suffix for FIPS builds
+        TAG_SUFFIX=""
+        LATEST_TAG="latest"
+        if [[ "$FIPS_MODE" == "fips" ]]; then
+          TAG_SUFFIX="-fips"
+          LATEST_TAG="latest-fips"
+        fi
+
+        VERSION_TAG="${VERSION}${TAG_SUFFIX}"
+
         echo "Importing Docker image from tarball..."
         docker import "${{ inputs.tar_path }}" \
-          "${{ inputs.image }}:${{ inputs.version }}"
-        
-        echo "Tagging as latest..."
-        docker tag "${{ inputs.image }}:${{ inputs.version }}" \
-          "${{ inputs.image }}:latest"
-        
-        echo "Pushing version tag..."
-        docker push "${{ inputs.image }}:${{ inputs.version }}"
-        
-        echo "Pushing latest tag..."
-        docker push "${{ inputs.image }}:latest"
-        
+          "${IMAGE}:${VERSION_TAG}"
+
+        echo "Tagging as ${LATEST_TAG}..."
+        docker tag "${IMAGE}:${VERSION_TAG}" \
+          "${IMAGE}:${LATEST_TAG}"
+
+        echo "Pushing version tag ${VERSION_TAG}..."
+        docker push "${IMAGE}:${VERSION_TAG}"
+
+        echo "Pushing ${LATEST_TAG} tag..."
+        docker push "${IMAGE}:${LATEST_TAG}"
+
         echo "Docker push completed successfully"

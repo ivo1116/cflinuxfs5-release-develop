@@ -29,6 +29,22 @@ inputs:
   release_deploy_key:
     description: 'SSH deploy key for release repo'
     required: true
+  fips_mode:
+    description: 'Build FIPS-compliant rootfs (normal or fips)'
+    required: false
+    default: 'normal'
+  fips_method:
+    description: 'FIPS build method (source or ubuntu-pro)'
+    required: false
+    default: 'source'
+  aws_region:
+    description: 'AWS region for S3 bucket'
+    required: true
+
+outputs:
+  artifact_stack:
+    description: 'Effective stack name for artifacts (e.g. cflinuxfs5 or cflinuxfs5-fips)'
+    value: ${{ steps.make-rootfs.outputs.artifact_stack }}
 
 runs:
   using: 'composite'
@@ -52,16 +68,19 @@ runs:
         ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
 
     - name: Make rootfs
+      id: make-rootfs
       uses: ./.github/actions/make-rootfs
       with:
         stack: ${{ inputs.stack }}
         version: ${{ inputs.version }}
         privileged: true
+        fips_mode: ${{ inputs.fips_mode }}
+        fips_method: ${{ inputs.fips_method }}
 
     - name: Generate receipt diff
       uses: ./.github/actions/generate-receipt-diff
       with:
-        stack: ${{ inputs.stack }}
+        stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         previous_version: ${{ inputs.previous_version }}
         bucket_name: ${{ inputs.bucket_name }}
@@ -69,12 +88,12 @@ runs:
     - name: Build cflinuxfs BOSH release
       uses: ./.github/actions/create-bosh-release
       with:
-        stack: ${{ inputs.stack }}
+        stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
-        release_name: ${{ inputs.stack }}
+        release_name: ${{ steps.make-rootfs.outputs.artifact_stack }}
         release_repo: ${{ inputs.release_repo }}
-        release_deploy_key:  ${{ inputs.release_deploy_key }}
+        release_deploy_key: ${{ inputs.release_deploy_key }}
         go_version: ${{ inputs.go_version }}
         aws_region: ${{ inputs.aws_region }}
         final: false
@@ -83,7 +102,7 @@ runs:
       uses: ./.github/actions/upload-s3
       with:
         upload_type: stack
-        stack: ${{ inputs.stack }}
+        stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
 
@@ -91,7 +110,7 @@ runs:
       uses: ./.github/actions/upload-s3
       with:
         upload_type: receipt
-        stack: ${{ inputs.stack }}
+        stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
 
@@ -99,10 +118,10 @@ runs:
       uses: ./.github/actions/upload-s3
       with:
         upload_type: release
-        stack: ${{ inputs.stack }}
+        stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
-        file: rootfs-artifacts/${{ inputs.stack }}-release-${{ inputs.version }}.tgz
+        file: rootfs-artifacts/${{ steps.make-rootfs.outputs.artifact_stack }}-release-${{ inputs.version }}.tgz
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
