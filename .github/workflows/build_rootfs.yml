@@ -153,6 +153,9 @@ jobs:
     needs: [determine-build-needed, gather-resources]
     runs-on: ubuntu-latest
     if: needs.determine-build-needed.outputs.should_build == 'true'
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout self
         uses: actions/checkout@v4
