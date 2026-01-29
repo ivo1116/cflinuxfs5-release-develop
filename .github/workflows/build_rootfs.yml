@@ -65,6 +65,9 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       golang_updated: ${{ steps.golang-bump.outputs.changes_detected }}
+    env:
+      AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+      AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
     steps:
       - name: Checkout self
         uses: actions/checkout@v4
