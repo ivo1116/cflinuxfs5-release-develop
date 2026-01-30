@@ -79,7 +79,12 @@ runs:
         set -euo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
 
-        eval "$(bbl print-env --shell-type bash --state-dir "$BBL_STATE_DIR")"
+        # Convert PowerShell format to Bash format
+        convert_ps_to_bash() {
+          bbl print-env --state-dir "$1" | sed "s/^\\\$env:/export /g" | sed "s/'$/\"/g" | sed "s/='/=\"/g"
+        }
+        
+        eval "$(convert_ps_to_bash "$BBL_STATE_DIR")"
 
         DIRECTOR_NAME=$(jq -r .bosh.directorName "$BBL_STATE_DIR/bbl-state.json")
 

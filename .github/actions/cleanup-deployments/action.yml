@@ -51,5 +51,10 @@ runs:
           exit 1
         fi
 
-        eval "$(bbl print-env --shell-type bash --state-dir "$BBL_STATE_DIR")"
+        # Convert PowerShell format to Bash format
+        convert_ps_to_bash() {
+          bbl print-env --state-dir "$1" | sed "s/^\\\$env:/export /g" | sed "s/'$/\"/g" | sed "s/='/=\"/g"
+        }
+        
+        eval "$(convert_ps_to_bash "$BBL_STATE_DIR")"
         bosh delete-deployment -d cf --non-interactive || echo "CF deployment deletion completed or not found"
