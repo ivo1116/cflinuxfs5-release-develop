@@ -94,6 +94,15 @@ runs:
       run: |
         set -eo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+        
+        # Debug: Show BBL version and print-env output
+        echo "BBL version:"
+        bbl --version || echo "BBL version command failed"
+        echo "---"
+        echo "BBL print-env output (first 20 lines):"
+        bbl print-env --state-dir $BBL_STATE_DIR 2>&1 | head -20 || echo "BBL print-env failed"
+        echo "---"
+        
         eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
         bosh upload-stemcell https://bosh.io/d/stemcells/bosh-google-kvm-ubuntu-noble?v=1.25
 
