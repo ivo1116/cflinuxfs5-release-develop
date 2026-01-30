@@ -92,7 +92,7 @@ runs:
     - name: Upload Noble stemcell
       shell: bash
       run: |
-        set -euo pipefail
+        set -eo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
         eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
         bosh upload-stemcell https://bosh.io/d/stemcells/bosh-google-kvm-ubuntu-noble?v=1.25
@@ -100,7 +100,7 @@ runs:
     - name: Upload cflinux release
       shell: bash
       run: |
-        set -euo pipefail
+        set -eo pipefail
         STACK="${{ inputs.stack }}"
         VERSION="${{ inputs.version }}"
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
@@ -111,7 +111,7 @@ runs:
       id: deploy
       shell: bash
       run: |
-        set -euo pipefail
+        set -eo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
         DOMAIN="${{ inputs.system_domain }}"
         OPS_FILE="ops-file/${{ inputs.ops_file }}"
