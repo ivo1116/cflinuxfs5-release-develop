@@ -51,5 +51,5 @@ runs:
           exit 1
         fi
 
-        eval "$(bbl print-env --state-dir "$BBL_STATE_DIR")"
+        eval "$(bbl print-env --shell-type bash --state-dir "$BBL_STATE_DIR")"
         bosh delete-deployment -d cf --non-interactive || echo "CF deployment deletion completed or not found"

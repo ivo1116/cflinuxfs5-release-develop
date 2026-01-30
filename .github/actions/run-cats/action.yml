@@ -79,7 +79,7 @@ runs:
         set -euo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
 
-        eval "$(bbl print-env --state-dir "$BBL_STATE_DIR")"
+        eval "$(bbl print-env --shell-type bash --state-dir "$BBL_STATE_DIR")"
 
         DIRECTOR_NAME=$(jq -r .bosh.directorName "$BBL_STATE_DIR/bbl-state.json")
 
