@@ -8,6 +8,14 @@ inputs:
   workflow_dispatch_version:
     description: 'Version from workflow_dispatch event'
     required: false
+  fips_mode:
+    description: 'FIPS mode (normal or fips)'
+    required: false
+    default: 'normal'
+  fips_method:
+    description: 'FIPS build method (source or ubuntu-pro)'
+    required: false
+    default: 'source'
   skip_cleanup:
     description: 'Skip cleanup'
     required: false
@@ -29,6 +37,12 @@ outputs:
   version:
     description: 'Resolved version'
     value: ${{ steps.normalize.outputs.version }}
+  fips_mode:
+    description: 'Normalized FIPS mode flag'
+    value: ${{ steps.normalize.outputs.fips_mode }}
+  fips_method:
+    description: 'Normalized FIPS build method'
+    value: ${{ steps.normalize.outputs.fips_method }}
   skip_cleanup:
     description: 'Normalized skip cleanup flag'
     value: ${{ steps.normalize.outputs.skip_cleanup }}
@@ -50,22 +64,26 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        
+
         # Determine version from either event type
         version="${{ inputs.repository_dispatch_version || inputs.workflow_dispatch_version }}"
         if [[ -z "$version" ]]; then
           echo "ERROR: No version provided"
           exit 1
         fi
-        
+
         echo "version=$version" >> $GITHUB_OUTPUT
+        echo "fips_mode=${{ inputs.fips_mode }}" >> $GITHUB_OUTPUT
+        echo "fips_method=${{ inputs.fips_method }}" >> $GITHUB_OUTPUT
         echo "skip_cleanup=${{ inputs.skip_cleanup }}" >> $GITHUB_OUTPUT
         echo "skip_setup=${{ inputs.skip_setup }}" >> $GITHUB_OUTPUT
         echo "skip_deploy=${{ inputs.skip_deploy }}" >> $GITHUB_OUTPUT
         echo "skip_cats=${{ inputs.skip_cats }}" >> $GITHUB_OUTPUT
-        
+
         echo "Normalized version: $version"
         echo "Test configuration:"
+        echo "  fips_mode: ${{ inputs.fips_mode }}"
+        echo "  fips_method: ${{ inputs.fips_method }}"
         echo "  skip_cleanup: ${{ inputs.skip_cleanup }}"
         echo "  skip_setup: ${{ inputs.skip_setup }}"
         echo "  skip_deploy: ${{ inputs.skip_deploy }}"

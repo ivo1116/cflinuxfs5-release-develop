@@ -12,6 +12,14 @@ inputs:
     description: 'Run with privileged access'
     required: false
     default: 'false'
+  fips_mode:
+    description: 'Build FIPS-compliant rootfs (normal or fips)'
+    required: false
+    default: 'normal'
+  fips_method:
+    description: 'FIPS build method (source or ubuntu-pro)'
+    required: false
+    default: 'source'
 
 outputs:
   artifacts_path:
@@ -20,6 +28,9 @@ outputs:
   success:
     description: 'Build success status'
     value: ${{ steps.build.outputs.success }}
+  artifact_stack:
+    description: 'Effective stack name for artifacts (e.g. cflinuxfs5 or cflinuxfs5-fips)'
+    value: ${{ steps.build.outputs.artifact_stack }}
 
 runs:
   using: 'composite'
@@ -64,6 +75,16 @@ runs:
         cd ${{ inputs.stack }}
 
         STACK="${{ inputs.stack }}"
+        FIPS_MODE="${{ inputs.fips_mode }}"
+        FIPS_METHOD="${{ inputs.fips_method }}"
+
+        # Compute FIPS suffix and effective artifact stack name
+        FIPS_SUFFIX=""
+        if [[ "$FIPS_MODE" == "fips" ]]; then
+          FIPS_SUFFIX="-fips"
+        fi
+        ARTIFACT_STACK="${STACK}${FIPS_SUFFIX}"
+
         old_receipt_copy="receipt.${STACK}.x86_64.copy"
 
         if [[ -f "receipt.${STACK}.x86_64" ]]; then
@@ -72,14 +93,26 @@ runs:
           touch "$old_receipt_copy"
         fi
 
+        # Set FIPS flags for the build
+        FIPS_FLAG=""
+        if [[ "$FIPS_MODE" == "fips" ]]; then
+          FIPS_FLAG="FIPS=true FIPS_METHOD=${FIPS_METHOD}"
+          echo "Building FIPS-compliant rootfs (method: ${FIPS_METHOD})"
+        else
+          echo "Building standard rootfs"
+        fi
+
+        # Always build with NAME=$STACK (to find packages/Dockerfile),
+        # but output artifacts use ARTIFACT_STACK
         make --always-make NAME="$STACK" \
-          PACKAGE_ARGS="--fix-missing"
+          PACKAGE_ARGS="--fix-missing" \
+          $FIPS_FLAG
 
         VERSION="${{ inputs.version }}"
-        versioned_stack_filename="../rootfs-artifacts/${STACK}-${VERSION}.tar.gz"
+        versioned_stack_filename="../rootfs-artifacts/${ARTIFACT_STACK}-${VERSION}.tar.gz"
         mv "${STACK}.x86_64.tar.gz" "$versioned_stack_filename"
 
-        versioned_receipt_filename="../receipt-artifacts/receipt.${STACK}.x86_64-${VERSION}"
+        versioned_receipt_filename="../receipt-artifacts/receipt.${ARTIFACT_STACK}.x86_64-${VERSION}"
         mv "receipt.${STACK}.x86_64" "$versioned_receipt_filename"
 
         if command -v git >/dev/null 2>&1; then
@@ -94,6 +127,7 @@ runs:
 
         echo "artifacts_path=." >> $GITHUB_OUTPUT
         echo "success=true" >> $GITHUB_OUTPUT
+        echo "artifact_stack=${ARTIFACT_STACK}" >> $GITHUB_OUTPUT
 
     - name: Verify artifacts were created
       shell: bash
@@ -106,15 +140,22 @@ runs:
 
         STACK="${{ inputs.stack }}"
         VERSION="${{ inputs.version }}"
+        FIPS_MODE="${{ inputs.fips_mode }}"
 
-        if [[ ! -f "rootfs-artifacts/${STACK}-${VERSION}.tar.gz" ]]; then
+        FIPS_SUFFIX=""
+        if [[ "$FIPS_MODE" == "fips" ]]; then
+          FIPS_SUFFIX="-fips"
+        fi
+        ARTIFACT_STACK="${STACK}${FIPS_SUFFIX}"
+
+        if [[ ! -f "rootfs-artifacts/${ARTIFACT_STACK}-${VERSION}.tar.gz" ]]; then
           echo "ERROR: Stack tarball not found!"
           exit 1
         fi
 
-        if [[ ! -f "receipt-artifacts/receipt.${STACK}.x86_64-${VERSION}" ]]; then
+        if [[ ! -f "receipt-artifacts/receipt.${ARTIFACT_STACK}.x86_64-${VERSION}" ]]; then
           echo "ERROR: Receipt file not found!"
           exit 1
         fi
 
-        echo "All artifacts created successfully"
+        echo "All artifacts created successfully (artifact_stack=${ARTIFACT_STACK})"
