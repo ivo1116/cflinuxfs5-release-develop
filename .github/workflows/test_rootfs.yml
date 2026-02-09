@@ -59,7 +59,9 @@ jobs:
       version: ${{ steps.set-vars.outputs.version }}
       fips_mode: ${{ steps.set-vars.outputs.fips_mode }}
       fips_method: ${{ steps.set-vars.outputs.fips_method }}
-      effective_stack: ${{ steps.effective-stack.outputs.effective_stack }}
+      effective_stack: ${{ steps.effective-names.outputs.effective_stack }}
+      effective_env_name: ${{ steps.effective-names.outputs.effective_env_name }}
+      effective_domain: ${{ steps.effective-names.outputs.effective_domain }}
       skip_cleanup: ${{ steps.set-vars.outputs.skip_cleanup }}
       skip_setup: ${{ steps.set-vars.outputs.skip_setup }}
       skip_deploy: ${{ steps.set-vars.outputs.skip_deploy }}
@@ -81,17 +83,22 @@ jobs:
           skip_deploy: ${{ github.event.client_payload.skip_deploy || github.event.inputs.skip_deploy || 'true' }}
           skip_cats: ${{ github.event.client_payload.skip_cats || github.event.inputs.skip_cats || 'false' }}
 
-      - name: Compute effective stack name
-        id: effective-stack
+      - name: Compute effective stack, env_name and domain
+        id: effective-names
         shell: bash
         run: |
           set -euo pipefail
           STACK="${{ vars.STACK }}"
+          SYSTEM_DOMAIN="${{ vars.SYSTEM_DOMAIN }}"
           FIPS_MODE="${{ steps.set-vars.outputs.fips_mode }}"
           if [[ "$FIPS_MODE" == "fips" ]]; then
             echo "effective_stack=${STACK}-fips" >> $GITHUB_OUTPUT
+            echo "effective_env_name=${STACK}-fips" >> $GITHUB_OUTPUT
+            echo "effective_domain=fips-${SYSTEM_DOMAIN}" >> $GITHUB_OUTPUT
           else
             echo "effective_stack=${STACK}" >> $GITHUB_OUTPUT
+            echo "effective_env_name=${STACK}" >> $GITHUB_OUTPUT
+            echo "effective_domain=${SYSTEM_DOMAIN}" >> $GITHUB_OUTPUT
           fi
 
   setup-test-environment:
@@ -111,8 +118,8 @@ jobs:
         with:
           stack: ${{ vars.STACK }}
           version: ${{ needs.resolve-inputs.outputs.version }}
-          env_name: ${{ vars.STACK }}
-          lb_domain: ${{ vars.SYSTEM_DOMAIN }}
+          env_name: ${{ needs.resolve-inputs.outputs.effective_env_name }}
+          lb_domain: ${{ needs.resolve-inputs.outputs.effective_domain }}
           gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           gcp_zone: ${{ vars.GCP_ZONE }}
           gcp_region: ${{ vars.GCP_REGION }}
@@ -151,11 +158,11 @@ jobs:
         uses: ./.github/actions/deploy-cf
         with:
           stack: ${{ needs.resolve-inputs.outputs.effective_stack }}
-          env_name: ${{ vars.STACK }}
+          env_name: ${{ needs.resolve-inputs.outputs.effective_env_name }}
           version: ${{ needs.resolve-inputs.outputs.version }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
           bbl_state_branch: master
-          system_domain: ${{ vars.SYSTEM_DOMAIN }}
+          system_domain: ${{ needs.resolve-inputs.outputs.effective_domain }}
           bucket_name: ${{ vars.BUCKET_NAME }}
           ops_file: ${{ vars.OPS_FILE }}
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
@@ -187,8 +194,8 @@ jobs:
         with:
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
           bbl_state_branch: master
-          system_domain: ${{ vars.SYSTEM_DOMAIN }}
-          env_name: ${{ vars.STACK }}
+          system_domain: ${{ needs.resolve-inputs.outputs.effective_domain }}
+          env_name: ${{ needs.resolve-inputs.outputs.effective_env_name }}
           nodes: 4
           flake_attempts: 3
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
@@ -229,7 +236,7 @@ jobs:
       - name: Cleanup deployments
         uses: ./.github/actions/cleanup-deployments
         with:
-          stack: ${{ vars.STACK }}
+          stack: ${{ needs.resolve-inputs.outputs.effective_env_name }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
           bbl_state_branch: master
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
@@ -252,7 +259,7 @@ jobs:
       - name: Destroy test environment
         uses: ./.github/actions/bbl-destroy
         with:
-          env_name: ${{ vars.STACK }}
+          env_name: ${{ needs.resolve-inputs.outputs.effective_env_name }}
           gcp_project_id: ${{ vars.GCP_PROJECT_ID }}
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
           bbl_state_branch: master
