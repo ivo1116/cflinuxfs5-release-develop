@@ -174,7 +174,6 @@ jobs:
           go_version: ${{ vars.GOLANG_VERSION }}
           aws_region: ${{ secrets.AWS_REGION }}
           cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
-          cflinuxfs_pat: ${{ secrets.CFLINUXFS5_PAT }}
           release_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
           fips_mode: ${{ github.event.inputs.fips_mode || 'normal' }}
           fips_method: ${{ github.event.inputs.fips_method || 'source' }}

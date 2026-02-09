@@ -137,7 +137,6 @@ jobs:
           bucket_name: ${{ vars.BUCKET_NAME }}
           default_branch: main
           cflinuxfs_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
-          cflinuxfs_pat: ${{ secrets.CFLINUXFS5_PAT }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

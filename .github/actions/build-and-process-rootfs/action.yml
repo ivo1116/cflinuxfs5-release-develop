@@ -27,8 +27,8 @@ inputs:
   go_version:
     description: 'Go version'
     required: true
-  cflinuxfs_pat:
-    description: 'Personal Access Token for cflinuxfs repos (works for both normal and FIPS)'
+  cflinuxfs_deploy_key:
+    description: 'SSH deploy key for cflinuxfs repos (works for both normal and FIPS if same key)'
     required: true
   release_deploy_key:
     description: 'SSH deploy key for release repo'
@@ -90,7 +90,7 @@ runs:
         repository: ${{ steps.determine-repo.outputs.effective_repo }}
         ref: main
         path: ${{ inputs.stack }}
-        token: ${{ inputs.cflinuxfs_pat }}
+        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
 
     - name: Make rootfs
       id: make-rootfs

@@ -20,8 +20,8 @@ inputs:
   default_branch:
     description: 'Default branch name'
     required: true
-  cflinuxfs_pat:
-    description: 'Personal Access Token for rootfs repo'
+  cflinuxfs_deploy_key:
+    description: 'SSH deploy key for rootfs repo'
     required: true
 
 runs:
@@ -36,7 +36,7 @@ runs:
         repository: ${{ inputs.rootfs_repo }}
         ref: ${{ inputs.default_branch }}
         path: rootfs
-        token: ${{ inputs.cflinuxfs_pat }}
+        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
         persist-credentials: true
 
     - name: Download RC stack from S3
