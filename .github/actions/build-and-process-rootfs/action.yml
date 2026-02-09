@@ -18,13 +18,17 @@ inputs:
     description: 'BOSH release repository'
     required: true
   cflinuxfs_repo:
-    description: 'cflinuxfs repository'
+    description: 'cflinuxfs repository (used for normal builds)'
     required: true
+  cflinuxfs_fips_repo:
+    description: 'cflinuxfs FIPS repository (used for FIPS builds)'
+    required: false
+    default: ''
   go_version:
     description: 'Go version'
     required: true
-  cflinuxfs_deploy_key:
-    description: 'SSH deploy key for cflinuxfs repo'
+  cflinuxfs_pat:
+    description: 'Personal Access Token for cflinuxfs repos (works for both normal and FIPS)'
     required: true
   release_deploy_key:
     description: 'SSH deploy key for release repo'
@@ -59,13 +63,34 @@ runs:
         ref: master
         path: buildpacks-ci
 
+    - name: Determine cflinuxfs repo to use
+      id: determine-repo
+      shell: bash
+      run: |
+        set -euo pipefail
+        FIPS_MODE="${{ inputs.fips_mode }}"
+        
+        if [[ "$FIPS_MODE" == "fips" ]]; then
+          # Use FIPS repo if provided, otherwise fall back to normal repo
+          if [[ -n "${{ inputs.cflinuxfs_fips_repo }}" ]]; then
+            echo "effective_repo=${{ inputs.cflinuxfs_fips_repo }}" >> $GITHUB_OUTPUT
+            echo "Using FIPS repository: ${{ inputs.cflinuxfs_fips_repo }}"
+          else
+            echo "WARNING: FIPS mode requested but no FIPS repo configured, using normal repo"
+            echo "effective_repo=${{ inputs.cflinuxfs_repo }}" >> $GITHUB_OUTPUT
+          fi
+        else
+          echo "effective_repo=${{ inputs.cflinuxfs_repo }}" >> $GITHUB_OUTPUT
+          echo "Using normal repository: ${{ inputs.cflinuxfs_repo }}"
+        fi
+
     - name: Checkout cflinuxfs repo
       uses: actions/checkout@v4
       with:
-        repository: ${{ inputs.cflinuxfs_repo }}
+        repository: ${{ steps.determine-repo.outputs.effective_repo }}
         ref: main
         path: ${{ inputs.stack }}
-        ssh-key: ${{ inputs.cflinuxfs_deploy_key }}
+        token: ${{ inputs.cflinuxfs_pat }}
 
     - name: Make rootfs
       id: make-rootfs
