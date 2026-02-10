@@ -68,6 +68,21 @@ runs:
         echo "BBL version:"
         bbl --version
 
+    - name: Install Terraform
+      shell: bash
+      run: |
+        set -euo pipefail
+        
+        if ! command -v terraform &> /dev/null; then
+          echo "Installing Terraform..."
+          wget -O /tmp/terraform.zip https://releases.hashicorp.com/terraform/1.5.7/terraform_1.5.7_linux_amd64.zip
+          unzip /tmp/terraform.zip -d /tmp/
+          sudo mv /tmp/terraform /usr/local/bin/terraform
+        fi
+        
+        echo "Terraform version:"
+        terraform --version
+
     - name: Make script executable
       shell: bash
       run: |
