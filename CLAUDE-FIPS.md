@@ -2,6 +2,18 @@
 
 This document describes how to run and manage the FIPS cflinuxfs5 pipeline, including all quirks and special considerations.
 
+## Current FIPS Build
+
+| Property | Value |
+|----------|-------|
+| **Version** | `1.0.0-rc.1` |
+| **Stack Name** | `cflinuxfs5-fips` |
+| **Build Run** | [#21858030858](https://github.com/ivo1116/cflinuxfs5-release-develop/actions/runs/21858030858) |
+| **Build Date** | 2026-02-10 |
+| **S3 Artifacts** | `s3://cflinuxfs5test/rootfs/cflinuxfs5-fips-1.0.0-rc.1.tar.gz` |
+
+**Important**: When running the test workflow, always use version `1.0.0-rc.1` to test the current FIPS build.
+
 ## Overview
 
 The FIPS pipeline builds and tests a FIPS-compliant version of cflinuxfs5. It runs separately from the normal cflinuxfs5 pipeline to avoid interference and uses isolated infrastructure.
