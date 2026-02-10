@@ -15,6 +15,27 @@ Both branches should have DNS management fixes synchronized.
 
 ## Running the FIPS Pipeline
 
+### Trigger the Build Workflow
+
+The build workflow creates the FIPS rootfs image and uploads artifacts to S3:
+
+```bash
+gh workflow run build_rootfs.yml \
+  --ref fips \
+  -f trigger_reason="FIPS build" \
+  -f fips_mode="fips" \
+  -f fips_method="source" \
+  --repo ivo1116/cflinuxfs5-release-develop
+```
+
+This workflow:
+1. Checks for new CVEs
+2. Bumps golang package if needed
+3. Builds the FIPS-compliant rootfs Docker image
+4. Creates the BOSH release
+5. Uploads stack tarball, receipt, and BOSH release to S3
+6. Automatically dispatches the test workflow on success
+
 ### Trigger the Test Workflow
 
 ```bash
@@ -221,7 +242,10 @@ gh workflow run test_rootfs.yml --ref fips \
 
 ## Files Related to FIPS
 
-- `.github/workflows/test_rootfs.yml` - Main test workflow
+- `.github/workflows/build_rootfs.yml` - FIPS build workflow (builds rootfs and uploads to S3)
+- `.github/workflows/test_rootfs.yml` - FIPS test workflow (deploys CF and runs CATs)
+- `.github/actions/build-and-process-rootfs/action.yml` - Composite action for building rootfs
+- `.github/actions/upload-s3/action.yml` - S3 upload action
 - `.github/actions/bbl-up/action.yml` - BBL up with DNS management
 - `.github/actions/bbl-destroy/action.yml` - BBL destroy with DNS cleanup
 - `.github/actions/manage-gcp-dns/action.yml` - DNS management action
