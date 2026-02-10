@@ -143,7 +143,7 @@ main() {
     echo "Waiting 90 seconds before DNS verification to avoid NXDOMAIN caching..."
     sleep 90
 
-    DOMAIN="pcf.${GCP_DNS_RECORD_SET_NAME}"
+    DOMAIN="api.${GCP_DNS_RECORD_SET_NAME}"
     check_dns "${DOMAIN}"
   fi
 }

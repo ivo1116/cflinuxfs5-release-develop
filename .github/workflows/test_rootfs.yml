@@ -126,6 +126,8 @@ jobs:
           bbl_state_repo: ${{ vars.BUILDPACKS_ENVS_REPO }}
           bbl_state_branch: master
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+          gcp_dns_zone_name: ${{ vars.GCP_DNS_ZONE_NAME }}
+          gcp_dns_service_account_key: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
@@ -266,6 +268,8 @@ jobs:
           gcp_zone: ${{ vars.GCP_ZONE }}
           gcp_region: ${{ vars.GCP_REGION }}
           bbl_state_deploy_key: ${{ secrets.BBL_STATE_DEPLOY_KEY }}
+          gcp_dns_zone_name: ${{ vars.GCP_DNS_ZONE_NAME }}
+          gcp_dns_record_set_name: ${{ needs.resolve-inputs.outputs.effective_domain }}
         env:
           GCP_SERVICE_ACCOUNT_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
           CFLINUXFS5_LB_CERT: ${{ secrets.CFLINUXFS5_LB_CERT }}
