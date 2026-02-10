@@ -59,7 +59,7 @@ runs:
       run: |
         set -euo pipefail
 
-        wget -O /tmp/bbl https://github.com/cloudfoundry/bosh-bootloader/releases/download/v9.0.36/bbl-v9.0.36_linux_amd64
+        wget -O /tmp/bbl https://github.com/Ivo1116/bosh-bootloader/releases/download/test/bbl-linux
         chmod +x /tmp/bbl && sudo mv /tmp/bbl /usr/local/bin/bbl
 
         wget -q -O - https://packages.cloudfoundry.org/debian/cli.cloudfoundry.org.key | sudo apt-key add -
@@ -72,6 +72,20 @@ runs:
         tar -xzf /tmp/credhub.tgz -C /tmp/credhub-cli
         sudo mv /tmp/credhub-cli/credhub /usr/local/bin/credhub
 
+    - name: Recreate GCP credentials for BBL
+      shell: bash
+      run: |
+        set -euo pipefail
+        BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
+        
+        # The GCP key is gitignored, so we need to recreate it from the secret
+        if [[ -n "${GCP_SERVICE_ACCOUNT_KEY:-}" ]]; then
+          printf "%s" "${GCP_SERVICE_ACCOUNT_KEY}" > "$BBL_STATE_DIR/gcp-key.json"
+          echo "Recreated GCP service account key in $BBL_STATE_DIR"
+        else
+          echo "WARNING: GCP_SERVICE_ACCOUNT_KEY not set, bbl print-env may fail"
+        fi
+
     - name: Extract CF admin password from CredHub
       id: creds
       shell: bash
@@ -79,7 +93,12 @@ runs:
         set -euo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
 
-        eval "$(bbl print-env --state-dir "$BBL_STATE_DIR")"
+        # Convert PowerShell format to Bash format
+        convert_ps_to_bash() {
+          bbl print-env --state-dir "$1" | sed "s/^\\\$env:/export /g" | sed "s/'$/\"/g" | sed "s/='/=\"/g"
+        }
+        
+        eval "$(convert_ps_to_bash "$BBL_STATE_DIR")"
 
         DIRECTOR_NAME=$(jq -r .bosh.directorName "$BBL_STATE_DIR/bbl-state.json")
 
@@ -101,40 +120,48 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        cf delete-buildpack cats_go_buildpack_fs5 -f || true
-        cf create-buildpack cats_go_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPMb9xqMjZzIYWRiCJq976v5K8O0FDln4djspB" 1
-        cf update-buildpack cats_go_buildpack_fs5 --assign-stack cflinuxfs5
+        cf delete-buildpack go_buildpack -f || true
+        cf create-buildpack go_buildpack "https://github.com/ivanovac/go-buildpack/releases/download/v1.11.00-beta-cflinuxfs5/buildpack.zip" 1
+        cf update-buildpack go_buildpack --assign-stack cflinuxfs5
+
+    - name: Upload Ruby buildpack
+      shell: bash
+      run: |
+        set -euo pipefail
+        cf delete-buildpack ruby_buildpack -f || true
+        cf create-buildpack ruby_buildpack "https://github.com/ivanovac/ruby-buildpack/releases/download/v1.11.06-beta-cflinuxfs5/ruby_buildpack-cached-cflinuxfs5-v1.11.06-beta.zip" 2
+        cf update-buildpack ruby_buildpack --assign-stack cflinuxfs5
 
     - name: Upload Node.js buildpack
       shell: bash
       run: |
         set -euo pipefail
-        cf delete-buildpack cats_nodejs_buildpack_fs5 -f || true
-        cf create-buildpack cats_nodejs_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPEsEtCHKh6AIfCm0e3PiDdbNpYMEzTuOkrgs7" 1
-        cf update-buildpack cats_nodejs_buildpack_fs5 --assign-stack cflinuxfs5
+        cf delete-buildpack nodejs_buildpack -f || true
+        cf create-buildpack nodejs_buildpack "https://github.com/ivanovac/nodejs-buildpack/releases/download/v1.9.0-beta-cflinuxfs5/nodejs_buildpack-cached-cflinuxfs5-v1.9.0-beta.zip" 3
+        cf update-buildpack nodejs_buildpack --assign-stack cflinuxfs5
 
     - name: Upload Python buildpack
       shell: bash
       run: |
         set -euo pipefail
-        cf delete-buildpack cats_python_buildpack_fs5 -f || true
-        cf create-buildpack cats_python_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPcEArVMD2FVhQzX9fjT81MWLlu2ygOeI65wbB" 1
-        cf update-buildpack cats_python_buildpack_fs5 --assign-stack cflinuxfs5
+        cf delete-buildpack python_buildpack -f || true
+        cf create-buildpack python_buildpack "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPcEArVMD2FVhQzX9fjT81MWLlu2ygOeI65wbB" 4
+        cf update-buildpack python_buildpack --assign-stack cflinuxfs5
 
     - name: Upload Staticfile (Nginx) buildpack
       shell: bash
       run: |
         set -euo pipefail
-        cf delete-buildpack cats_staticfile_buildpack_fs5 -f || true
-        cf create-buildpack cats_staticfile_buildpack_fs5 "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPWqx4jHLc0hYwfFZnEx9CoQWpjeHM1LruKXJN" 1
-        cf update-buildpack cats_staticfile_buildpack_fs5 --assign-stack cflinuxfs5
+        cf delete-buildpack staticfile_buildpack -f || true
+        cf create-buildpack staticfile_buildpack "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kPWqx4jHLc0hYwfFZnEx9CoQWpjeHM1LruKXJN" 5
+        cf update-buildpack staticfile_buildpack --assign-stack cflinuxfs5
 
     - name: Upload Binary buildpack
       shell: bash
       run: |
         set -euo pipefail
         cf delete-buildpack binary_buildpack -f || true
-        cf create-buildpack binary_buildpack "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kP361kcIMBSlE41WVDgbYQamtHMPncOA8KuCoJ" 1
+        cf create-buildpack binary_buildpack "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kP361kcIMBSlE41WVDgbYQamtHMPncOA8KuCoJ" 6
         cf update-buildpack binary_buildpack --assign-stack cflinuxfs5
 
     - name: Create CATS config
@@ -154,32 +181,34 @@ runs:
           "use_existing_space": false,
           "include_apps": true,
           "include_detect": true,
+          "include_routing": true,
+          "include_v3": true,
+          "include_tasks": true,
+          "include_security_groups": true,
           "include_backend_compatibility": false,
           "include_docker": false,
           "include_internet_dependent": false,
           "include_route_services": false,
-          "include_routing": false,
-          "include_security_groups": false,
           "include_services": false,
           "include_ssh": false,
           "include_sso": false,
-          "include_tasks": false,
-          "include_v3": false,
           "include_syslog": false,
           "include_app_syslog_tcp": false,
           "skip_diego_unsupported_tests": true,
           "skip_go": false,
           "skip_node": false,
           "skip_java": true,
-          "skip_ruby": true,
+          "skip_ruby": false,
           "skip_python": false,
           "skip_php": true,
           "skip_dotnet": true,
           "skip_staticfile": false,
-          "go_buildpack_name": "cats_go_buildpack_fs5",
-          "nginx_buildpack_name": "cats_staticfile_buildpack_fs5",
-          "nodejs_buildpack_name": "cats_nodejs_buildpack_fs5",
-          "python_buildpack_name": "cats_python_buildpack_fs5"
+          "go_buildpack_name": "go_buildpack",
+          "ruby_buildpack_name": "ruby_buildpack",
+          "nginx_buildpack_name": "staticfile_buildpack",
+          "nodejs_buildpack_name": "nodejs_buildpack",
+          "python_buildpack_name": "python_buildpack",
+          "binary_buildpack_name": "binary_buildpack"
         }
         EOF
         echo "config=$CONFIG_FILE" >> $GITHUB_OUTPUT
@@ -205,16 +234,14 @@ runs:
         echo "success=true" >> "$GITHUB_OUTPUT"
         exit 0
 
-    - name: Delete uploaded Go buildpack
+    - name: Cleanup buildpacks
       if: always()
       shell: bash
       run: |
         set -euo pipefail
-        cf delete-buildpack cats_go_buildpack_fs5 -f || true
-
-    - name: Delete uploaded Binary buildpack
-      if: always()
-      shell: bash
-      run: |
-        set -euo pipefail
+        cf delete-buildpack go_buildpack -f || true
+        cf delete-buildpack ruby_buildpack -f || true
+        cf delete-buildpack nodejs_buildpack -f || true
+        cf delete-buildpack python_buildpack -f || true
+        cf delete-buildpack staticfile_buildpack -f || true
         cf delete-buildpack binary_buildpack -f || true
