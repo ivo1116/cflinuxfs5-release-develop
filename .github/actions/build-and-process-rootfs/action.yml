@@ -131,6 +131,7 @@ runs:
         stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
+        aws_region: ${{ inputs.aws_region }}
 
     - name: Upload receipt to S3
       uses: ./.github/actions/upload-s3
@@ -139,6 +140,7 @@ runs:
         stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
+        aws_region: ${{ inputs.aws_region }}
 
     - name: Upload BOSH release to S3
       uses: ./.github/actions/upload-s3
@@ -147,6 +149,7 @@ runs:
         stack: ${{ steps.make-rootfs.outputs.artifact_stack }}
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
+        aws_region: ${{ inputs.aws_region }}
         file: rootfs-artifacts/${{ steps.make-rootfs.outputs.artifact_stack }}-release-${{ inputs.version }}.tgz
 
     - name: Upload build artifacts
