@@ -11,6 +11,10 @@ inputs:
   git_user_email:
     description: 'Git user.email for commit'
     required: true
+  target_branch:
+    description: 'Branch to push to (defaults to current branch)'
+    required: false
+    default: ''
 
 outputs:
   commit_sha:
@@ -43,8 +47,15 @@ runs:
         fi
 
         git fetch origin
-
-        git push origin HEAD:${GITHUB_REF_NAME}
+        
+        # Determine target branch - use input if provided, otherwise use GITHUB_REF_NAME
+        TARGET_BRANCH="${{ inputs.target_branch }}"
+        if [[ -z "$TARGET_BRANCH" ]]; then
+          TARGET_BRANCH="${GITHUB_REF_NAME}"
+        fi
+        
+        echo "Pushing to branch: $TARGET_BRANCH"
+        git push origin HEAD:${TARGET_BRANCH}
 
         sha=$(git rev-parse HEAD)
 
