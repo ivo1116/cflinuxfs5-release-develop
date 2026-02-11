@@ -77,6 +77,11 @@ runs:
         aws_access_key_id = $AWS_ACCESS_KEY_ID
         aws_secret_access_key = $AWS_SECRET_ACCESS_KEY
         EOF
+        
+        # Add session token if provided (for temporary credentials)
+        if [[ -n "${AWS_SESSION_TOKEN:-}" ]]; then
+          echo "aws_session_token = $AWS_SESSION_TOKEN" >> ~/.aws/credentials
+        fi
 
     - name: Create final BOSH release
       uses: ./.github/actions/create-bosh-release
