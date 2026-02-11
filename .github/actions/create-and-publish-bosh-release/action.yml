@@ -95,6 +95,7 @@ runs:
         release_repo: ${{ inputs.owner }}/${{ inputs.release_repo }}
         go_version: ${{ inputs.go_version }}
         aws_region: ${{ inputs.aws_region }}
+        github_token: ${{ inputs.github_token }}
         final: true
 
     - name: Upload BOSH release to S3

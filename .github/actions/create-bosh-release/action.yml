@@ -22,8 +22,13 @@ inputs:
     description: 'GitHub org/repo for the BOSH release'
     required: true
   release_deploy_key:
-    description: 'SSH deploy key for release repo'
-    required: true
+    description: 'SSH deploy key for release repo (deprecated, use github_token)'
+    required: false
+    default: ''
+  github_token:
+    description: 'GitHub PAT with write access to release repo'
+    required: false
+    default: ''
   bosh_cli_version:
     description: 'Version of bosh-cli to install'
     required: false
@@ -68,8 +73,8 @@ runs:
         repository: ${{ inputs.release_repo }}
         ref: main
         path: ${{ inputs.release_dir }}
-        submodules: recursive
         ssh-key: ${{ inputs.release_deploy_key }}
+        token: ${{ inputs.github_token || github.token }}
         submodules: recursive
 
     - name: Checkout bosh-package-golang-release
