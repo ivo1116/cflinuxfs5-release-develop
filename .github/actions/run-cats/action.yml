@@ -164,14 +164,6 @@ runs:
         cf create-buildpack binary_buildpack "https://v96161d7o2.ufs.sh/f/mpjH2zGjR1kP361kcIMBSlE41WVDgbYQamtHMPncOA8KuCoJ" 6
         cf update-buildpack binary_buildpack --assign-stack cflinuxfs5
 
-    - name: Upload DotNet Core buildpack
-      shell: bash
-      run: |
-        set -euo pipefail
-        cf delete-buildpack dotnet_core_buildpack -f || true
-        cf create-buildpack dotnet_core_buildpack "https://github.com/ivanovac/dotnet-core-buildpack/releases/download/v2.5.1-beta-cflinuxfs5/buildpack.zip" 7
-        cf update-buildpack dotnet_core_buildpack --assign-stack cflinuxfs5
-
     - name: Create CATS config
       id: config
       shell: bash
@@ -209,7 +201,7 @@ runs:
           "skip_ruby": false,
           "skip_python": false,
           "skip_php": true,
-          "skip_dotnet": false,
+          "skip_dotnet": true,
           "skip_staticfile": false,
           "go_buildpack_name": "go_buildpack",
           "ruby_buildpack_name": "ruby_buildpack",
