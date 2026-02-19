@@ -179,7 +179,7 @@ jobs:
         if: success()
         uses: ./.github/actions/trigger-test-workflow
         with:
-          github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
+          github_token: ${{ secrets.CFLINUXFS5_PAT }}
           version: ${{ needs.gather-resources.outputs.version }}
 
   build-summary:
