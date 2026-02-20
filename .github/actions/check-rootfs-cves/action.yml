@@ -184,8 +184,8 @@ runs:
           echo "CVE notifications updated and pushed"
         else
           echo "updated=false" >> $GITHUB_OUTPUT
-          echo "Failed to push CVE updates"
-          exit 1
+          echo "Warning: Failed to push CVE updates (no write access to upstream repo)"
+          echo "This is non-fatal - build will continue"
         fi
 
     - name: No changes found
