@@ -181,6 +181,8 @@ jobs:
         with:
           github_token: ${{ secrets.CFLINUXFS5_PAT }}
           version: ${{ needs.gather-resources.outputs.version }}
+          skip_setup: 'true'
+          skip_cleanup: 'true'
 
   build-summary:
     name: Build Summary

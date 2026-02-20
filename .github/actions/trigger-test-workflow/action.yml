@@ -8,6 +8,14 @@ inputs:
   version:
     description: 'Version to test'
     required: true
+  skip_setup:
+    description: 'Skip environment setup'
+    required: false
+    default: 'false'
+  skip_cleanup:
+    description: 'Skip cleanup/destroy'
+    required: false
+    default: 'false'
 
 runs:
   using: 'composite'
@@ -20,8 +28,8 @@ runs:
         client-payload: |
           {
             "version": "${{ inputs.version }}",
-            "skip_cleanup": "false",
-            "skip_setup": "false",
+            "skip_cleanup": "${{ inputs.skip_cleanup }}",
+            "skip_setup": "${{ inputs.skip_setup }}",
             "skip_deploy": "false",
             "skip_cats": "false"
           }
