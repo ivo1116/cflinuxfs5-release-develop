@@ -100,30 +100,30 @@ main() {
   # Trap to abort transaction on error
   trap 'gcloud --project="${GCP_DNS_PROJECT_ID}" dns record-sets transaction abort -z "${GCP_DNS_ZONE_NAME}" 2>/dev/null || true; rm -f "${GCP_SERVICE_ACCOUNT_KEY_PATH}"' EXIT
 
-  # Remove existing DNS records if present
-  if [[ "${zone_info}" != "[]" ]]; then
-    echo "Removing existing DNS records..."
+  # Remove existing NS records if present
+  # Filter specifically for NS records with the exact name
+  existing_ns_record=$(echo "${zone_info}" | jq -r --arg name "${GCP_DNS_RECORD_SET_NAME}." \
+    '.[] | select(.type == "NS" and .name == $name)')
 
-    # Extract existing NS records and TTL from the actual record
-    existing_record=$(echo "${zone_info}" | jq -r '.[] | select(.type == "NS")')
-    
-    if [[ -n "${existing_record}" ]]; then
-      existing_ttl=$(echo "${existing_record}" | jq -r '.ttl')
-      outdated_dns_servers=($(echo "${existing_record}" | jq -r '.rrdatas[]'))
+  if [[ -n "${existing_ns_record}" && "${existing_ns_record}" != "null" ]]; then
+    echo "Found existing NS record, removing..."
+    existing_ttl=$(echo "${existing_ns_record}" | jq -r '.ttl')
+    outdated_dns_servers=($(echo "${existing_ns_record}" | jq -r '.rrdatas[]'))
 
-      if [[ ${#outdated_dns_servers[@]} -gt 0 ]]; then
-        echo "Removing NS records with TTL ${existing_ttl}: ${outdated_dns_servers[*]}"
-        gcloud --project="${GCP_DNS_PROJECT_ID}" \
-          dns record-sets transaction remove \
-          -z "${GCP_DNS_ZONE_NAME}" \
-          --name "${GCP_DNS_RECORD_SET_NAME}" \
-          --ttl "${existing_ttl}" \
-          --type NS \
-          "${outdated_dns_servers[@]}"
-      fi
+    if [[ ${#outdated_dns_servers[@]} -gt 0 && -n "${existing_ttl}" && "${existing_ttl}" != "null" ]]; then
+      echo "Removing NS records with TTL ${existing_ttl}: ${outdated_dns_servers[*]}"
+      gcloud --project="${GCP_DNS_PROJECT_ID}" \
+        dns record-sets transaction remove \
+        -z "${GCP_DNS_ZONE_NAME}" \
+        --name "${GCP_DNS_RECORD_SET_NAME}" \
+        --ttl "${existing_ttl}" \
+        --type NS \
+        "${outdated_dns_servers[@]}"
     else
-      echo "No existing NS records found to remove"
+      echo "No valid NS record data to remove"
     fi
+  else
+    echo "No existing NS records found for ${GCP_DNS_RECORD_SET_NAME}"
   fi
 
   # Add new DNS records if action is "add"
