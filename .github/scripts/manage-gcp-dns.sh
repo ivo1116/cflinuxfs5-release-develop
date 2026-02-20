@@ -65,7 +65,7 @@ main() {
 
     while IFS= read -r dns_server; do
       dns_servers+=("${dns_server}")
-    done < <(bbl --state-dir "${BBL_STATE_DIR}" lbs --json | jq -r '.cf_system_domain_dns_servers[]')
+    done < <(bbl --state-dir "${BBL_STATE_DIR}" lbs --json --terraform-binary "$(which terraform)" | jq -r '.cf_system_domain_dns_servers[]')
   else
     echo "ERROR: BBL state directory not found: ${BBL_STATE_DIR}"
     exit 1
