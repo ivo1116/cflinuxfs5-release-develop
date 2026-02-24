@@ -42,7 +42,10 @@ runs:
           git commit -m "Finalize BOSH release"
         fi
 
+        # Fetch latest changes and rebase to avoid non-fast-forward errors
+        # This handles the case where other commits were pushed while the workflow ran
         git fetch origin
+        git rebase origin/${GITHUB_REF_NAME}
 
         git push origin HEAD:${GITHUB_REF_NAME}
 
