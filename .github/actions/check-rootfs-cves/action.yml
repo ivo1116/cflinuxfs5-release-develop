@@ -173,19 +173,20 @@ runs:
       id: push-changes
       if: steps.check-changes.outputs.changes == 'true'
       shell: bash
+      continue-on-error: true
       run: |
         set -euo pipefail
-        
+
         cd new-cves
-        
+
         echo "Pushing CVE updates..."
         if git push origin HEAD; then
           echo "updated=true" >> $GITHUB_OUTPUT
           echo "CVE notifications updated and pushed"
         else
           echo "updated=false" >> $GITHUB_OUTPUT
-          echo "Failed to push CVE updates"
-          exit 1
+          echo "WARNING: Failed to push CVE updates (may lack permissions to upstream repo)"
+          echo "This is non-blocking - build will continue"
         fi
 
     - name: No changes found
