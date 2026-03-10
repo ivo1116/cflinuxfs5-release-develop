@@ -183,6 +183,7 @@ jobs:
           release_deploy_key: ${{ secrets.CFLINUXFS5_DEPLOY_KEY }}
           fips_mode: ${{ github.event.inputs.fips_mode || 'normal' }}
           fips_method: ${{ github.event.inputs.fips_method || 'source' }}
+          ubuntu_pro_token: ${{ secrets.UBUNTU_TOKEN }}
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}

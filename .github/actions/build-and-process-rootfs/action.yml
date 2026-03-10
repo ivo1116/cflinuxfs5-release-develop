@@ -41,6 +41,10 @@ inputs:
     description: 'FIPS build method (source or ubuntu-pro)'
     required: false
     default: 'source'
+  ubuntu_pro_token:
+    description: 'Ubuntu Pro token for FIPS builds (required when fips_method is ubuntu-pro)'
+    required: false
+    default: ''
   aws_region:
     description: 'AWS region for S3 bucket'
     required: true
@@ -101,6 +105,7 @@ runs:
         privileged: true
         fips_mode: ${{ inputs.fips_mode }}
         fips_method: ${{ inputs.fips_method }}
+        ubuntu_pro_token: ${{ inputs.ubuntu_pro_token }}
 
     - name: Generate receipt diff
       uses: ./.github/actions/generate-receipt-diff

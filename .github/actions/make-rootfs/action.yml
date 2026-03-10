@@ -20,6 +20,10 @@ inputs:
     description: 'FIPS build method (source or ubuntu-pro)'
     required: false
     default: 'source'
+  ubuntu_pro_token:
+    description: 'Ubuntu Pro token for FIPS builds (required when fips_method is ubuntu-pro)'
+    required: false
+    default: ''
 
 outputs:
   artifacts_path:
@@ -98,6 +102,17 @@ runs:
         if [[ "$FIPS_MODE" == "fips" ]]; then
           FIPS_FLAG="FIPS=true FIPS_METHOD=${FIPS_METHOD}"
           echo "Building FIPS-compliant rootfs (method: ${FIPS_METHOD})"
+
+          # For ubuntu-pro method, create token file for Docker BuildKit secret
+          if [[ "$FIPS_METHOD" == "ubuntu-pro" ]]; then
+            UBUNTU_PRO_TOKEN="${{ inputs.ubuntu_pro_token }}"
+            if [[ -z "$UBUNTU_PRO_TOKEN" ]]; then
+              echo "ERROR: Ubuntu Pro token is required for ubuntu-pro FIPS method"
+              exit 1
+            fi
+            echo "$UBUNTU_PRO_TOKEN" > .ubuntu-pro-token
+            echo "Created Ubuntu Pro token file for BuildKit secret"
+          fi
         else
           echo "Building standard rootfs"
         fi
@@ -107,6 +122,9 @@ runs:
         make --always-make NAME="$STACK" \
           PACKAGE_ARGS="--fix-missing" \
           $FIPS_FLAG
+
+        # Clean up token file if it exists
+        rm -f .ubuntu-pro-token
 
         VERSION="${{ inputs.version }}"
         versioned_stack_filename="../rootfs-artifacts/${ARTIFACT_STACK}-${VERSION}.tar.gz"
