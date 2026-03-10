@@ -205,7 +205,7 @@ jobs:
         if: success()
         uses: ./.github/actions/trigger-test-workflow
         with:
-          github_token: ${{ secrets.CFLINUX_GITHUB_TOKEN }}
+          github_token: ${{ secrets.CFLINUXFS5_PAT }}
           version: ${{ needs.gather-resources.outputs.version }}
           fips_mode: ${{ github.event.inputs.fips_mode || 'normal' }}
           fips_method: ${{ github.event.inputs.fips_method || 'source' }}
