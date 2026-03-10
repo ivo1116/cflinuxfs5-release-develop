@@ -134,7 +134,13 @@ runs:
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
         DOMAIN="${{ inputs.system_domain }}"
         OPS_FILE=".github/ops/${{ inputs.ops_file }}"
-        eval "$(bbl print-env --state-dir $BBL_STATE_DIR)"
+
+        # Convert PowerShell format to Bash format
+        convert_ps_to_bash() {
+          bbl print-env --state-dir "$1" | sed "s/^\\\$env:/export /g" | sed "s/'$/\"/g" | sed "s/='/=\"/g"
+        }
+
+        eval "$(convert_ps_to_bash $BBL_STATE_DIR)"
         
         deploy_cf() {
           bosh -n -d cf deploy cf-deployment/cf-deployment.yml \
