@@ -71,7 +71,6 @@ runs:
       uses: actions/checkout@v4
       with:
         repository: ${{ inputs.release_repo }}
-        ref: main
         path: ${{ inputs.release_dir }}
         ssh-key: ${{ inputs.release_deploy_key }}
         token: ${{ inputs.github_token || github.token }}
@@ -116,31 +115,27 @@ runs:
       shell: bash
       run: |
         set -euo pipefail
-        
+
         cd ${{ inputs.release_dir }}
-        
-        # Create blobs.yml if it doesn't exist
-        if [[ ! -f config/blobs.yml ]]; then
-          echo "Creating empty blobs.yml..."
-          mkdir -p config
-          echo "---" > config/blobs.yml
-          echo "{}" >> config/blobs.yml
-        fi
-        
-        # Clean existing blobs if needed
-        if [[ -f config/blobs.yml ]] && grep -q "cflinuxfs5-rootfs-setup\|cflinuxfs5-smoke-test\|rootfs-certsplitter-cflinuxfs5\|golang-1-linux" config/blobs.yml 2>/dev/null; then
-          echo "Cleaning old blob references..."
-          bosh remove-blob cflinuxfs5-rootfs-setup 2>/dev/null || true
-          bosh remove-blob cflinuxfs5-smoke-test 2>/dev/null || true
-          bosh remove-blob rootfs-certsplitter-cflinuxfs5 2>/dev/null || true
-          bosh remove-blob golang-1-linux 2>/dev/null || true
-        fi
-        
+
+        # Reset blobs.yml to empty - we'll add fresh blobs
+        echo "Resetting blobs.yml to empty..."
+        mkdir -p config
+        echo "---" > config/blobs.yml
+        echo "{}" >> config/blobs.yml
+
         # Clean dev builds
         if [[ -d dev_builds ]]; then
           echo "Cleaning dev_builds directory..."
           rm -rf dev_builds
         fi
+
+        # Clean blobs directory
+        if [[ -d blobs ]]; then
+          echo "Cleaning blobs directory..."
+          rm -rf blobs
+        fi
+        mkdir -p blobs
 
     - name: Vendor Golang package
       shell: bash
