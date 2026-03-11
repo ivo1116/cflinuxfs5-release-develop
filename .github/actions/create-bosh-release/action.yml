@@ -137,6 +137,19 @@ runs:
         fi
         mkdir -p blobs
 
+        # Clean releases directory to avoid referencing old artifacts
+        if [[ -d releases ]]; then
+          echo "Cleaning releases directory..."
+          rm -rf releases
+        fi
+        mkdir -p releases
+
+        # Clean .final_builds to avoid stale artifact references
+        if [[ -d .final_builds ]]; then
+          echo "Cleaning .final_builds directory..."
+          rm -rf .final_builds
+        fi
+
     - name: Vendor Golang package
       shell: bash
       run: |
