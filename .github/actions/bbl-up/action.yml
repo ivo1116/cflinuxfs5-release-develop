@@ -113,8 +113,29 @@ runs:
           ${LB_DOMAIN:+--lb-domain "$LB_DOMAIN"} 2>&1 | tee /tmp/bbl-up.log; then
 
           if grep -q "already exists" /tmp/bbl-up.log; then
-            echo "Stale environment detected, destroying before retry..."
-            bbl destroy --no-confirm --terraform-binary /usr/local/bin/terraform --debug || true
+            echo "Stale environment detected, attempting cleanup..."
+
+            if [[ -f bbl-state.json ]]; then
+              echo "BBL state found, running bbl destroy..."
+              bbl destroy --no-confirm --terraform-binary /usr/local/bin/terraform --debug || true
+            else
+              echo "No bbl-state.json found. Cleaning up stale GCP service account marker..."
+              gcloud auth activate-service-account --key-file=gcp-key.json --project="${BBL_GCP_PROJECT_ID}" 2>/dev/null || true
+
+              STALE_SA=$(gcloud iam service-accounts list \
+                --project="${BBL_GCP_PROJECT_ID}" \
+                --filter="email ~ bbl-env-${BBL_ENV_NAME}" \
+                --format="value(email)" 2>/dev/null || true)
+
+              if [[ -n "$STALE_SA" ]]; then
+                echo "Deleting stale service account: $STALE_SA"
+                gcloud iam service-accounts delete "$STALE_SA" \
+                  --project="${BBL_GCP_PROJECT_ID}" --quiet || true
+              else
+                echo "WARNING: Could not find stale BBL service account to clean up."
+                echo "Manual cleanup of GCP resources for env '${BBL_ENV_NAME}' may be required."
+              fi
+            fi
 
             echo "Retrying bbl up..."
             bbl up \
