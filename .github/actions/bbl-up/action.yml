@@ -103,13 +103,32 @@ runs:
           export LB_DOMAIN="${{ inputs.lb_domain }}"
         fi
 
-        bbl up \
+        # If a stale environment exists from a previous failed run, destroy it first
+        if ! bbl up \
           --terraform-binary /usr/local/bin/terraform \
           --debug \
           --lb-type cf \
           ${BBL_LB_CERT:+--lb-cert "$BBL_LB_CERT"} \
           ${BBL_LB_KEY:+--lb-key "$BBL_LB_KEY"} \
-          ${LB_DOMAIN:+--lb-domain "$LB_DOMAIN"}
+          ${LB_DOMAIN:+--lb-domain "$LB_DOMAIN"} 2>&1 | tee /tmp/bbl-up.log; then
+
+          if grep -q "already exists" /tmp/bbl-up.log; then
+            echo "Stale environment detected, destroying before retry..."
+            bbl destroy --no-confirm --terraform-binary /usr/local/bin/terraform --debug || true
+
+            echo "Retrying bbl up..."
+            bbl up \
+              --terraform-binary /usr/local/bin/terraform \
+              --debug \
+              --lb-type cf \
+              ${BBL_LB_CERT:+--lb-cert "$BBL_LB_CERT"} \
+              ${BBL_LB_KEY:+--lb-key "$BBL_LB_KEY"} \
+              ${LB_DOMAIN:+--lb-domain "$LB_DOMAIN"}
+          else
+            echo "bbl up failed for an unexpected reason"
+            exit 1
+          fi
+        fi
 
         echo "success=true" >> "$GITHUB_OUTPUT"
 

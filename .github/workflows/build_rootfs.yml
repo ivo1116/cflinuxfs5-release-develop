@@ -65,7 +65,6 @@ jobs:
               provider: s3
               options:
                 bucket_name: ${{ vars.BUCKET_NAME }}
-                prefix: bosh-blobs
                 region: ${{ vars.AWS_REGION }}
                 credentials_source: env_or_profile
           cflinuxfs_release_repo: ${{ vars.RELEASE_REPO }}

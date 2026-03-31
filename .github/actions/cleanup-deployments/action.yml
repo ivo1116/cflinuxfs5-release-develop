@@ -47,8 +47,8 @@ runs:
         BBL_STATE_DIR="bbl-state/${{ inputs.stack }}"
 
         if [[ ! -d "$BBL_STATE_DIR" ]]; then
-          echo "BBL state directory not found: $BBL_STATE_DIR"
-          exit 1
+          echo "BBL state directory not found: $BBL_STATE_DIR — nothing to clean up"
+          exit 0
         fi
 
         eval "$(bbl print-env --shell-type posix --state-dir "$BBL_STATE_DIR")"
