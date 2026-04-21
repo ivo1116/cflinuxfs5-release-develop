@@ -76,7 +76,7 @@ runs:
             fi
           fi
         elif [[ "${{ inputs.type }}" == "release" ]]; then
-          cp rootfs-artifacts/${{ inputs.stack }}-release-${{ inputs.version }}.tgz release-assets/
+          cp rootfs-artifacts/${{ inputs.stack }}-${{ inputs.version }}.tgz release-assets/
         fi
         
         echo "Release assets prepared:"

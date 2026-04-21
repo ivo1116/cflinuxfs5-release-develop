@@ -58,7 +58,7 @@ runs:
               ;;
               
             "release")
-              KEY="rootfs/${STACK}-release-${RC_VERSION}.tgz"
+              KEY="rootfs/${STACK}-${RC_VERSION}.tgz"
               echo "Deleting BOSH release: s3://${BUCKET}/${KEY}"
               if aws s3 rm "s3://${BUCKET}/${KEY}" 2>/dev/null; then
                 echo "Deleted release artifact"
@@ -115,7 +115,7 @@ runs:
               ;;
               
             "release")
-              KEY="rootfs/${STACK}-release-${RC_VERSION}.tgz"
+              KEY="rootfs/${STACK}-${RC_VERSION}.tgz"
               if aws s3 ls "s3://${BUCKET}/${KEY}" 2>/dev/null; then
                 echo "✗ Release artifact still exists"
                 all_deleted=false

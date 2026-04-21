@@ -155,7 +155,7 @@ runs:
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
         aws_region: ${{ inputs.aws_region }}
-        file: rootfs-artifacts/${{ steps.make-rootfs.outputs.artifact_stack }}-release-${{ inputs.version }}.tgz
+        file: rootfs-artifacts/${{ steps.make-rootfs.outputs.artifact_stack }}-${{ inputs.version }}.tgz
 
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4

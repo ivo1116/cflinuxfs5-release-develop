@@ -91,7 +91,7 @@ runs:
         stack: ${{ inputs.stack }}
         bucket_name: ${{ inputs.bucket_name }}
         version: ${{ inputs.version }}
-        release_name: ${{ inputs.stack }}-release
+        release_name: ${{ inputs.stack }}
         release_repo: ${{ inputs.owner }}/${{ inputs.release_repo }}
         go_version: ${{ inputs.go_version }}
         aws_region: ${{ inputs.aws_region }}
@@ -105,7 +105,7 @@ runs:
         version: ${{ inputs.version }}
         bucket_name: ${{ inputs.bucket_name }}
         stack: ${{ inputs.stack }}
-        file: rootfs-artifacts/${{ inputs.stack }}-release-${{ inputs.version }}.tgz
+        file: rootfs-artifacts/${{ inputs.stack }}-${{ inputs.version }}.tgz
 
     - name: Create BOSH release notes
       uses: ./.github/actions/create-bosh-release-notes

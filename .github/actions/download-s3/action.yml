@@ -53,7 +53,7 @@ runs:
 
           "release")
             mkdir -p rootfs-artifacts
-            FILE_NAME="${STACK}-release-${VERSION}.tgz"
+            FILE_NAME="${STACK}-${VERSION}.tgz"
             echo "Downloading BOSH release tarball: s3://${BUCKET}/rootfs/${FILE_NAME}"
             aws s3 cp "s3://${BUCKET}/rootfs/${FILE_NAME}" "rootfs-artifacts/${FILE_NAME}"
             ;;

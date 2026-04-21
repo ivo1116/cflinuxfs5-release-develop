@@ -225,8 +225,8 @@ runs:
         FINAL="${{ inputs.final }}"
         
         mkdir -p ../rootfs-artifacts
-        # Use artifact_stack for output tarball naming (e.g., cflinuxfs5-fips-release-1.0.0.tgz)
-        OUTPUT="../rootfs-artifacts/${ARTIFACT_STACK}-release-${VERSION}.tgz"
+        # Use artifact_stack for output tarball naming (e.g., cflinuxfs5-fips-1.0.0.tgz)
+        OUTPUT="../rootfs-artifacts/${ARTIFACT_STACK}-${VERSION}.tgz"
         
         if [[ "$FINAL" == "true" ]]; then
           echo "Creating FINAL release..."

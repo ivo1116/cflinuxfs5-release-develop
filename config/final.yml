@@ -1,5 +1,5 @@
 ---
-name: cflinuxfs5
+name: cflinuxfs5-fips
 blobstore:
   provider: s3
   options:

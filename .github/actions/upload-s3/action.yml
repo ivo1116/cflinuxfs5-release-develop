@@ -75,7 +75,7 @@ runs:
             ;;
 
           "release")
-            RELEASE_FILE="${FILE_INPUT:-rootfs-artifacts/${STACK}-release-${VERSION}.tgz}"
+            RELEASE_FILE="${FILE_INPUT:-rootfs-artifacts/${STACK}-${VERSION}.tgz}"
             if [[ ! -f "$RELEASE_FILE" ]]; then
               echo "ERROR: Release file not found: $RELEASE_FILE"
               ls -la rootfs-artifacts/ || echo "No rootfs-artifacts directory"
@@ -118,7 +118,7 @@ runs:
               (echo "ERROR: Receipt file not found in S3" && exit 1)
             ;;
           "release")
-            RELEASE_FILE_NAME="$(basename ${FILE_INPUT:-${STACK}-release-${VERSION}.tgz})"
+            RELEASE_FILE_NAME="$(basename ${FILE_INPUT:-${STACK}-${VERSION}.tgz})"
             echo "Verifying release upload..."
             aws s3 ls "s3://${BUCKET}/rootfs/${RELEASE_FILE_NAME}" || \
               (echo "ERROR: Release file not found in S3" && exit 1)

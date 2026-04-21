@@ -1,4 +1,4 @@
-name: cflinuxfs5-fips-release
+name: cflinuxfs5-fips
 version: 1.35.0
 commit_hash: 47d8ad0
 uncommitted_changes: true
