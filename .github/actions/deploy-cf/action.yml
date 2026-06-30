@@ -88,7 +88,13 @@ runs:
         set -euo pipefail
         BBL_STATE_DIR="bbl-state/${{ inputs.env_name }}"
         eval "$(bbl print-env --shell-type posix --state-dir $BBL_STATE_DIR)"
-        bosh upload-stemcell https://bosh.io/d/stemcells/bosh-google-kvm-ubuntu-noble?v=1.25
+        NOBLE_VERSION=$(yq '.stemcells[] | select(.os == "ubuntu-noble") | .version' cf-deployment/cf-deployment.yml)
+        if [[ -z "${NOBLE_VERSION}" || "${NOBLE_VERSION}" == "null" ]]; then
+          echo "Failed to determine ubuntu-noble stemcell version from cf-deployment.yml" >&2
+          exit 1
+        fi
+        echo "Uploading ubuntu-noble stemcell version ${NOBLE_VERSION}"
+        bosh upload-stemcell "https://bosh.io/d/stemcells/bosh-google-kvm-ubuntu-noble?v=${NOBLE_VERSION}"
 
     - name: Upload cflinux release
       shell: bash
