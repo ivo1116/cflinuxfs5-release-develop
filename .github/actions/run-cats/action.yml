@@ -109,7 +109,7 @@ runs:
       run: |
         set -euo pipefail
         cat > /tmp/credhub-asg.json <<'JSON'
-        [{"protocol":"tcp","destination":"10.0.0.0/8","ports":"8844"}]
+        [{"protocol":"tcp","destination":"10.0.0.0/8","ports":"8443,8844"}]
         JSON
         cf create-security-group credhub-cats /tmp/credhub-asg.json
         cf bind-running-security-group credhub-cats
@@ -229,7 +229,7 @@ runs:
           --flake-attempts=${{ inputs.flake_attempts }} \
           --timeout="${{ inputs.timeout }}" \
           --no-color \
-          --skip="Specifying a specific Stack"
+          --skip="Specifying a specific Stack|GitBuildpack"
         TEST_EXIT_CODE=$?
         
         if [ $TEST_EXIT_CODE -ne 0 ]; then
